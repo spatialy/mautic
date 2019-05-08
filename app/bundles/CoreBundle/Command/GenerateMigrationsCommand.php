@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -38,7 +39,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @license http://www.opensource.org/licenses/lgpl-license.php LGPL
  *
- * @link    www.doctrine-project.org
+ * @see     www.doctrine-project.org
  * @since   2.0
  *
  * @author  Jonathan Wage <jonwage@gmail.com>
@@ -47,7 +48,8 @@ class GenerateMigrationsCommand extends AbstractCommand
 {
     private static $_template =
             '<?php
-/**
+
+/*
  * @package     Mautic
  * @copyright   <year> Mautic Contributors. All rights reserved.
  * @author      Mautic

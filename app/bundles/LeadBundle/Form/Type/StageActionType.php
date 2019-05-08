@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -59,6 +60,7 @@ class StageActionType extends AbstractType
     {
         return 'choice';
     }
+
     /**
      * @return string
      */

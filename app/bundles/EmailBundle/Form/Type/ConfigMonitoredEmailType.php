@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2015 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -10,9 +11,9 @@
 
 namespace Mautic\EmailBundle\Form\Type;
 
-use Mautic\CoreBundle\Factory\MauticFactory;
 use Mautic\EmailBundle\EmailEvents;
 use Mautic\EmailBundle\Event\MonitoredEmailEvent;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 
@@ -22,13 +23,18 @@ use Symfony\Component\Form\FormBuilderInterface;
 class ConfigMonitoredEmailType extends AbstractType
 {
     /**
-     * @var MauticFactory
+     * @var EventDispatcherInterface
      */
-    private $factory;
+    private $dispatcher;
 
-    public function __construct(MauticFactory $factory)
+    /**
+     * ConfigMonitoredEmailType constructor.
+     *
+     * @param EventDispatcherInterface $dispatcher
+     */
+    public function __construct(EventDispatcherInterface $dispatcher)
     {
-        $this->factory = $factory;
+        $this->dispatcher = $dispatcher;
     }
 
     /**
@@ -44,12 +50,8 @@ class ConfigMonitoredEmailType extends AbstractType
 
             // Default email bundles
             $event->addFolder('general', '', 'mautic.email.config.monitored_email.general');
-            $event->addFolder('EmailBundle', 'bounces', 'mautic.email.config.monitored_email.bounce_folder');
-            $event->addFolder('EmailBundle', 'unsubscribes', 'mautic.email.config.monitored_email.unsubscribe_folder');
 
-            if ($this->factory->getDispatcher()->hasListeners(EmailEvents::MONITORED_EMAIL_CONFIG)) {
-                $this->factory->getDispatcher()->dispatch(EmailEvents::MONITORED_EMAIL_CONFIG, $event);
-            }
+            $this->dispatcher->dispatch(EmailEvents::MONITORED_EMAIL_CONFIG, $event);
 
             $folderSettings = $event->getFolders();
             foreach ($folderSettings as $key => $settings) {

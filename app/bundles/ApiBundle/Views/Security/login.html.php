@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -17,7 +18,7 @@ $view['slots']->set('header', $view['translator']->trans('mautic.api.oauth.heade
         <span class="input-group-addon"><i class="fa fa-user"></i></span>
         <label for="username" class="sr-only"><?php echo $view['translator']->trans('mautic.user.auth.form.loginusername'); ?></label>
         <input type="text" id="username" name="_username"
-               class="form-control input-lg" value="<?php echo $last_username ?>" required autofocus
+               class="form-control input-lg" value="<?php echo $view->escape($last_username) ?>" required autofocus
                placeholder="<?php echo $view['translator']->trans('mautic.user.auth.form.loginusername'); ?>" />
     </div>
     <div class="input-group mb-md">

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -34,5 +35,13 @@ class PluginIntegrationEvent extends AbstractPluginIntegrationEvent
     public function getEntity()
     {
         return $this->integration->getIntegrationSettings();
+    }
+
+    /**
+     * @param Integration $integration
+     */
+    public function setEntity(Integration $integration)
+    {
+        $this->integration->setIntegrationSettings($integration);
     }
 }

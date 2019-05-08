@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -13,6 +14,7 @@ namespace Mautic\DynamicContentBundle\Model;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Mautic\CoreBundle\Helper\Chart\ChartQuery;
 use Mautic\CoreBundle\Helper\Chart\LineChart;
+use Mautic\CoreBundle\Model\AjaxLookupModelInterface;
 use Mautic\CoreBundle\Model\FormModel;
 use Mautic\CoreBundle\Model\TranslationModelTrait;
 use Mautic\CoreBundle\Model\VariantModelTrait;
@@ -25,7 +27,7 @@ use Mautic\LeadBundle\Entity\Lead;
 use Symfony\Component\EventDispatcher\Event;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 
-class DynamicContentModel extends FormModel
+class DynamicContentModel extends FormModel implements AjaxLookupModelInterface
 {
     use VariantModelTrait;
     use TranslationModelTrait;
@@ -37,7 +39,7 @@ class DynamicContentModel extends FormModel
      */
     public function getPermissionBase()
     {
-        return 'dynamicContent:dynamicContents';
+        return 'dynamiccontent:dynamiccontents';
     }
 
     /**
@@ -85,6 +87,10 @@ class DynamicContentModel extends FormModel
      */
     public function getEntity($id = null)
     {
+        if ($id === null) {
+            return new DynamicContent();
+        }
+
         return parent::getEntity($id);
     }
 
@@ -141,6 +147,10 @@ class DynamicContentModel extends FormModel
      */
     public function getSlotContentForLead($slot, $lead)
     {
+        if (!$lead) {
+            return [];
+        }
+
         $qb = $this->em->getConnection()->createQueryBuilder();
 
         $id = $lead instanceof Lead ? $lead->getId() : $lead['id'];
@@ -150,6 +160,7 @@ class DynamicContentModel extends FormModel
             ->leftJoin('dc', MAUTIC_TABLE_PREFIX.'dynamic_content_lead_data', 'dcld', 'dcld.dynamic_content_id = dc.id')
             ->andWhere($qb->expr()->eq('dcld.slot', ':slot'))
             ->andWhere($qb->expr()->eq('dcld.lead_id', ':lead_id'))
+            ->andWhere($qb->expr()->eq('dc.is_published', 1))
             ->setParameter('slot', $slot)
             ->setParameter('lead_id', $id)
             ->orderBy('dcld.date_added', 'DESC')
@@ -285,5 +296,40 @@ class DynamicContentModel extends FormModel
         }
 
         return $chart->render();
+    }
+
+    /**
+     * @param        $type
+     * @param string $filter
+     * @param int    $limit
+     * @param int    $start
+     * @param array  $options
+     */
+    public function getLookupResults($type, $filter = '', $limit = 10, $start = 0, $options = [])
+    {
+        $results = [];
+        switch ($type) {
+            case 'dynamicContent':
+                $entities = $this->getRepository()->getDynamicContentList(
+                    $filter,
+                    $limit,
+                    $start,
+                    $this->security->isGranted($this->getPermissionBase().':viewother'),
+                    isset($options['top_level']) ? $options['top_level'] : false,
+                    isset($options['ignore_ids']) ? $options['ignore_ids'] : [],
+                    isset($options['where']) ? $options['where'] : ''
+                );
+
+                foreach ($entities as $entity) {
+                    $results[$entity['language']][$entity['id']] = $entity['name'];
+                }
+
+                //sort by language
+                ksort($results);
+
+                break;
+        }
+
+        return $results;
     }
 }

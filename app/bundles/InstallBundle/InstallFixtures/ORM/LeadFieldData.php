@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -15,6 +16,7 @@ use Doctrine\Common\DataFixtures\OrderedFixtureInterface;
 use Doctrine\Common\Persistence\ObjectManager;
 use Mautic\CoreBundle\Doctrine\Helper\ColumnSchemaHelper;
 use Mautic\CoreBundle\Doctrine\Helper\IndexSchemaHelper;
+use Mautic\CoreBundle\Exception\SchemaException;
 use Mautic\LeadBundle\Entity\LeadField;
 use Mautic\LeadBundle\Model\FieldModel;
 use Symfony\Component\DependencyInjection\ContainerAwareInterface;
@@ -50,10 +52,10 @@ class LeadFieldData extends AbstractFixture implements OrderedFixtureInterface, 
         $indexesToAdd = [];
         foreach ($fieldGroups as $object => $fields) {
             if ($object == 'company') {
-                /** @var ColumnSchemaHelper $companiesSchema */
+                /** @var ColumnSchemaHelper $schema */
                 $schema = $this->container->get('mautic.schema.helper.factory')->getSchemaHelper('column', 'companies');
             } else {
-                /** @var ColumnSchemaHelper $companiesSchema */
+                /** @var ColumnSchemaHelper $schema */
                 $schema = $this->container->get('mautic.schema.helper.factory')->getSchemaHelper('column', 'leads');
             }
 
@@ -75,13 +77,22 @@ class LeadFieldData extends AbstractFixture implements OrderedFixtureInterface, 
                 $entity->setIsListable(!empty($field['listable']));
                 $entity->setIsShortVisible(!empty($field['short']));
 
+                if (isset($field['default'])) {
+                    $entity->setDefaultValue($field['default']);
+                }
+
                 $manager->persist($entity);
                 $manager->flush();
 
-                $schema->addColumn(
-                    FieldModel::getSchemaDefinition($alias, $type, $entity->getIsUniqueIdentifier())
-                );
-                $indexesToAdd[$object][] = $alias;
+                try {
+                    $schema->addColumn(
+                        FieldModel::getSchemaDefinition($alias, $type, $entity->getIsUniqueIdentifier())
+                    );
+                } catch (SchemaException $e) {
+                    // Schema already has this custom field; likely defined as a property in the entity class itself
+                }
+
+                $indexesToAdd[$object][$alias] = $field;
 
                 $this->addReference('leadfield-'.$alias, $entity);
                 ++$order;
@@ -99,8 +110,8 @@ class LeadFieldData extends AbstractFixture implements OrderedFixtureInterface, 
                 $indexHelper = $this->container->get('mautic.schema.helper.factory')->getSchemaHelper('index', 'leads');
             }
 
-            foreach ($indexes as $name) {
-                $type = (isset($fields[$name]['type'])) ? $fields[$name]['type'] : 'text';
+            foreach ($indexes as $name => $field) {
+                $type = (isset($field['type'])) ? $field['type'] : 'text';
                 if ('textarea' != $type) {
                     $indexHelper->addIndex([$name], $name.'_search');
                 }
@@ -108,6 +119,8 @@ class LeadFieldData extends AbstractFixture implements OrderedFixtureInterface, 
             if ($object == 'lead') {
                 // Add an attribution index
                 $indexHelper->addIndex(['attribution', 'attribution_date'], 'contact_attribution');
+                //Add date added and country index
+                $indexHelper->addIndex(['date_added', 'country'], 'date_added_country_index');
             } else {
                 $indexHelper->addIndex(['companyname', 'companyemail'], 'company_filter');
                 $indexHelper->addIndex(['companyname', 'companycity', 'companycountry', 'companystate'], 'company_match');

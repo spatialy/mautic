@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -73,6 +74,13 @@ class UpdateController extends CommonController
             $application = new Application($this->get('kernel'));
             $application->setAutoExit(false);
             $output = new BufferedOutput();
+
+            $minExecutionTime = 300;
+            $maxExecutionTime = (int) ini_get('max_execution_time');
+            if ($maxExecutionTime > 0 && $maxExecutionTime < $minExecutionTime) {
+                ini_set('max_execution_time', $minExecutionTime);
+            }
+
             $result = $application->run($input, $output);
 
             $outputBuffer = $output->fetch();

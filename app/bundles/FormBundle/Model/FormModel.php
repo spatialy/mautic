@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -10,6 +11,7 @@
 
 namespace Mautic\FormBundle\Model;
 
+use DOMDocument;
 use Mautic\CoreBundle\Doctrine\Helper\SchemaHelperFactory;
 use Mautic\CoreBundle\Helper\Chart\ChartQuery;
 use Mautic\CoreBundle\Helper\TemplatingHelper;
@@ -22,6 +24,9 @@ use Mautic\FormBundle\Event\FormBuilderEvent;
 use Mautic\FormBundle\Event\FormEvent;
 use Mautic\FormBundle\FormEvents;
 use Mautic\FormBundle\Helper\FormFieldHelper;
+use Mautic\FormBundle\Helper\FormUploader;
+use Mautic\LeadBundle\Entity\Lead;
+use Mautic\LeadBundle\Helper\FormFieldHelper as ContactFieldHelper;
 use Mautic\LeadBundle\Model\FieldModel as LeadFieldModel;
 use Mautic\LeadBundle\Model\LeadModel;
 use Symfony\Component\EventDispatcher\Event;
@@ -79,6 +84,11 @@ class FormModel extends CommonFormModel
     protected $leadFieldModel;
 
     /**
+     * @var FormUploader
+     */
+    private $formUploader;
+
+    /**
      * FormModel constructor.
      *
      * @param RequestStack        $requestStack
@@ -90,6 +100,7 @@ class FormModel extends CommonFormModel
      * @param LeadModel           $leadModel
      * @param FormFieldHelper     $fieldHelper
      * @param LeadFieldModel      $leadFieldModel
+     * @param FormUploader        $formUploader
      */
     public function __construct(
         RequestStack $requestStack,
@@ -100,7 +111,8 @@ class FormModel extends CommonFormModel
         FieldModel $formFieldModel,
         LeadModel $leadModel,
         FormFieldHelper $fieldHelper,
-        LeadFieldModel $leadFieldModel
+        LeadFieldModel $leadFieldModel,
+        FormUploader $formUploader
     ) {
         $this->request             = $requestStack->getCurrentRequest();
         $this->templatingHelper    = $templatingHelper;
@@ -111,6 +123,7 @@ class FormModel extends CommonFormModel
         $this->leadModel           = $leadModel;
         $this->fieldHelper         = $fieldHelper;
         $this->leadFieldModel      = $leadFieldModel;
+        $this->formUploader        = $formUploader;
     }
 
     /**
@@ -147,9 +160,12 @@ class FormModel extends CommonFormModel
         if (!$entity instanceof Form) {
             throw new MethodNotAllowedHttpException(['Form']);
         }
-        $params = (!empty($action)) ? ['action' => $action] : [];
 
-        return $formFactory->create('mauticform', $entity, $params);
+        if (!empty($action)) {
+            $options['action'] = $action;
+        }
+
+        return $formFactory->create('mauticform', $entity, $options);
     }
 
     /**
@@ -163,7 +179,15 @@ class FormModel extends CommonFormModel
             return new Form();
         }
 
-        return parent::getEntity($id);
+        $entity = parent::getEntity($id);
+
+        if ($entity && $entity->getFields()) {
+            foreach ($entity->getFields() as $field) {
+                $this->addLeadFieldOptions($field);
+            }
+        }
+
+        return $entity;
     }
 
     /**
@@ -273,16 +297,27 @@ class FormModel extends CommonFormModel
         $existingFields = $entity->getFields()->toArray();
         $deleteFields   = [];
         foreach ($sessionFields as $fieldId) {
-            if (isset($existingFields[$fieldId])) {
-                $entity->removeField($fieldId, $existingFields[$fieldId]);
-                $deleteFields[] = $fieldId;
+            if (!isset($existingFields[$fieldId])) {
+                continue;
             }
+            $this->handleFilesDelete($existingFields[$fieldId]);
+            $entity->removeField($fieldId, $existingFields[$fieldId]);
+            $deleteFields[] = $fieldId;
         }
 
         // Delete fields from db
         if (count($deleteFields)) {
             $this->formFieldModel->deleteEntities($deleteFields);
         }
+    }
+
+    private function handleFilesDelete(Field $field)
+    {
+        if (!$field->isFileType()) {
+            return;
+        }
+
+        $this->formUploader->deleteAllFilesOfFormField($field);
     }
 
     /**
@@ -388,7 +423,7 @@ class FormModel extends CommonFormModel
     }
 
     /**
-     * Obtains the cached HTML of a form and generates it if missing.
+     * Obtains the content.
      *
      * @param Form      $form
      * @param bool|true $withScript
@@ -398,6 +433,27 @@ class FormModel extends CommonFormModel
      */
     public function getContent(Form $form, $withScript = true, $useCache = true)
     {
+        $html = $this->getFormHtml($form, $useCache);
+
+        if ($withScript) {
+            $html = $this->getFormScript($form)."\n\n".$this->removeScriptTag($html);
+        } else {
+            $html = $this->removeScriptTag($html);
+        }
+
+        return $html;
+    }
+
+    /**
+     * Obtains the cached HTML of a form and generates it if missing.
+     *
+     * @param Form      $form
+     * @param bool|true $useCache
+     *
+     * @return string
+     */
+    public function getFormHtml(Form $form, $useCache = true)
+    {
         if ($useCache && !$form->usesProgressiveProfiling()) {
             $cachedHtml = $form->getCachedHtml();
         }
@@ -406,11 +462,31 @@ class FormModel extends CommonFormModel
             $cachedHtml = $this->generateHtml($form, $useCache);
         }
 
-        if ($withScript) {
-            $cachedHtml = $this->getFormScript($form)."\n\n".$cachedHtml;
+        if (!$form->getInKioskMode()) {
+            $this->populateValuesWithLead($form, $cachedHtml);
         }
 
         return $cachedHtml;
+    }
+
+    /**
+     * Get results for a form and lead.
+     *
+     * @param Form $form
+     * @param int  $leadId
+     * @param int  $limit
+     *
+     * @return array
+     */
+    public function getLeadSubmissions(Form $form, $leadId, $limit = 200)
+    {
+        return $this->getRepository()->getFormResults(
+            $form,
+            [
+                'leadId' => $leadId,
+                'limit'  => $limit,
+            ]
+        );
     }
 
     /**
@@ -426,21 +502,15 @@ class FormModel extends CommonFormModel
         //generate cached HTML
         $theme       = $entity->getTemplate();
         $submissions = null;
-        $lead        = $this->leadModel->getCurrentLead();
+        $lead        = ($this->request) ? $this->leadModel->getCurrentLead() : null;
         $style       = '';
 
         if (!empty($theme)) {
             $theme .= '|';
         }
 
-        if ($entity->usesProgressiveProfiling()) {
-            $submissions = $this->getRepository()->getFormResults(
-                $entity,
-                [
-                    'leadId' => $lead->getId(),
-                    'limit'  => 200,
-                ]
-            );
+        if ($lead instanceof Lead && $lead->getId() && $entity->usesProgressiveProfiling()) {
+            $submissions = $this->getLeadSubmissions($entity, $lead->getId());
         }
 
         if ($entity->getRenderStyle()) {
@@ -506,6 +576,7 @@ class FormModel extends CommonFormModel
                 'fieldSettings' => $this->getCustomComponents()['fields'],
                 'fields'        => $fields,
                 'contactFields' => $this->leadFieldModel->getFieldListWithProperties(),
+                'companyFields' => $this->leadFieldModel->getFieldListWithProperties('company'),
                 'form'          => $entity,
                 'theme'         => $theme,
                 'submissions'   => $submissions,
@@ -513,6 +584,7 @@ class FormModel extends CommonFormModel
                 'formPages'     => $pages,
                 'lastFormPage'  => $lastPage,
                 'style'         => $style,
+                'inBuilder'     => false,
             ]
         );
 
@@ -568,7 +640,8 @@ class FormModel extends CommonFormModel
      */
     public function deleteEntity($entity)
     {
-        parent::deleteEntity($entity);
+        /* @var Form $entity */
+        $this->deleteFormFiles($entity);
 
         if (!$entity->getId()) {
             //delete the associated results table
@@ -576,6 +649,7 @@ class FormModel extends CommonFormModel
             $schemaHelper->deleteTable('form_results_'.$entity->deletedId.'_'.$entity->getAlias());
             $schemaHelper->executeChanges();
         }
+        parent::deleteEntity($entity);
     }
 
     /**
@@ -586,12 +660,19 @@ class FormModel extends CommonFormModel
         $entities     = parent::deleteEntities($ids);
         $schemaHelper = $this->schemaHelperFactory->getSchemaHelper('table');
         foreach ($entities as $id => $entity) {
+            /* @var Form $entity */
             //delete the associated results table
             $schemaHelper->deleteTable('form_results_'.$id.'_'.$entity->getAlias());
+            $this->deleteFormFiles($entity);
         }
         $schemaHelper->executeChanges();
 
         return $entities;
+    }
+
+    private function deleteFormFiles(Form $form)
+    {
+        $this->formUploader->deleteFilesOfForm($form);
     }
 
     /**
@@ -650,7 +731,7 @@ class FormModel extends CommonFormModel
             $customComponents['validators'] = $event->getValidators();
 
             // Generate a list of fields that are not persisted to the database by default
-            $notPersist = ['button', 'captcha', 'freetext', 'pagebreak'];
+            $notPersist = ['button', 'captcha', 'freetext', 'freehtml', 'pagebreak'];
             foreach ($customComponents['fields'] as $type => $field) {
                 if (isset($field['builderOptions']) && isset($field['builderOptions']['addSaveResult']) && false === $field['builderOptions']['addSaveResult']) {
                     $notPersist[] = $type;
@@ -671,14 +752,30 @@ class FormModel extends CommonFormModel
      */
     public function getAutomaticJavascript(Form $form)
     {
-        $html = $this->getContent($form);
+        $html       = $this->getContent($form, false);
+        $formScript = $this->getFormScript($form);
 
         //replace line breaks with literal symbol and escape quotations
-        $search  = ["\n", '"'];
-        $replace = ['\n', '\"'];
-        $html    = str_replace($search, $replace, $html);
+        $search        = ["\r\n", "\n", '"'];
+        $replace       = ['', '', '\"'];
+        $html          = str_replace($search, $replace, $html);
+        $oldFormScript = str_replace($search, $replace, $formScript);
+        $newFormScript = $this->generateJsScript($formScript);
 
-        return 'document.write("'.$html.'");';
+        // Write html for all browser and fallback for IE
+        $script = '
+            var scr  = document.currentScript;
+            var html = "'.$html.'";
+            
+            if (scr !== undefined) {
+                scr.insertAdjacentHTML("afterend", html);
+                '.$newFormScript.'
+            } else {
+                document.write("'.$oldFormScript.'"+html);
+            }
+        ';
+
+        return $script;
     }
 
     /**
@@ -701,6 +798,13 @@ class FormModel extends CommonFormModel
                 'theme' => $theme,
             ]
         );
+
+        $html    = $this->getFormHtml($form);
+        $scripts = $this->extractScriptTag($html);
+
+        foreach ($scripts as $item) {
+            $script .= $item."\n";
+        }
 
         return $script;
     }
@@ -733,21 +837,36 @@ class FormModel extends CommonFormModel
      */
     public function populateValuesWithLead(Form $form, &$formHtml)
     {
-        $formName = $form->generateFormName();
-        $lead     = $this->leadModel->getCurrentLead();
+        $formName       = $form->generateFormName();
+        $fields         = $form->getFields();
+        $autoFillFields = [];
 
-        $fields = $form->getFields();
-        /** @var \Mautic\FormBundle\Entity\Field $f */
-        foreach ($fields as $f) {
-            $leadField  = $f->getLeadField();
-            $isAutoFill = $f->getIsAutoFill();
+        /** @var \Mautic\FormBundle\Entity\Field $field */
+        foreach ($fields as $key => $field) {
+            $leadField  = $field->getLeadField();
+            $isAutoFill = $field->getIsAutoFill();
 
+            // we want work just with matched autofill fields
             if (isset($leadField) && $isAutoFill) {
-                $value = $lead->getFieldValue($leadField);
+                $autoFillFields[$key] = $field;
+            }
+        }
 
-                if (!empty($value)) {
-                    $this->fieldHelper->populateField($f, $value, $formName, $formHtml);
-                }
+        // no fields for populate
+        if (!count($autoFillFields)) {
+            return;
+        }
+
+        $lead = $this->leadModel->getCurrentLead();
+        if (!$lead instanceof Lead) {
+            return;
+        }
+
+        foreach ($autoFillFields as $field) {
+            $value = $lead->getFieldValue($field->getLeadField());
+
+            if (!empty($value)) {
+                $this->fieldHelper->populateField($field, $value, $formName, $formHtml);
             }
         }
     }
@@ -761,45 +880,60 @@ class FormModel extends CommonFormModel
     {
         $operatorOptions = [
             '=' => [
-                    'label'       => 'mautic.lead.list.form.operator.equals',
-                    'expr'        => 'eq',
-                    'negate_expr' => 'neq',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.equals',
+                'expr'        => 'eq',
+                'negate_expr' => 'neq',
+            ],
             '!=' => [
-                    'label'       => 'mautic.lead.list.form.operator.notequals',
-                    'expr'        => 'neq',
-                    'negate_expr' => 'eq',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.notequals',
+                'expr'        => 'neq',
+                'negate_expr' => 'eq',
+            ],
             'gt' => [
-                    'label'       => 'mautic.lead.list.form.operator.greaterthan',
-                    'expr'        => 'gt',
-                    'negate_expr' => 'lt',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.greaterthan',
+                'expr'        => 'gt',
+                'negate_expr' => 'lt',
+            ],
             'gte' => [
-                    'label'       => 'mautic.lead.list.form.operator.greaterthanequals',
-                    'expr'        => 'gte',
-                    'negate_expr' => 'lt',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.greaterthanequals',
+                'expr'        => 'gte',
+                'negate_expr' => 'lt',
+            ],
             'lt' => [
-                    'label'       => 'mautic.lead.list.form.operator.lessthan',
-                    'expr'        => 'lt',
-                    'negate_expr' => 'gt',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.lessthan',
+                'expr'        => 'lt',
+                'negate_expr' => 'gt',
+            ],
             'lte' => [
-                    'label'       => 'mautic.lead.list.form.operator.lessthanequals',
-                    'expr'        => 'lte',
-                    'negate_expr' => 'gt',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.lessthanequals',
+                'expr'        => 'lte',
+                'negate_expr' => 'gt',
+            ],
             'like' => [
-                    'label'       => 'mautic.lead.list.form.operator.islike',
-                    'expr'        => 'like',
-                    'negate_expr' => 'notLike',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.islike',
+                'expr'        => 'like',
+                'negate_expr' => 'notLike',
+            ],
             '!like' => [
-                    'label'       => 'mautic.lead.list.form.operator.isnotlike',
-                    'expr'        => 'notLike',
-                    'negate_expr' => 'like',
-                ],
+                'label'       => 'mautic.lead.list.form.operator.isnotlike',
+                'expr'        => 'notLike',
+                'negate_expr' => 'like',
+            ],
+            'startsWith' => [
+                'label'       => 'mautic.core.operator.starts.with',
+                'expr'        => 'startsWith',
+                'negate_expr' => 'startsWith',
+            ],
+            'endsWith' => [
+                'label'       => 'mautic.core.operator.ends.with',
+                'expr'        => 'endsWith',
+                'negate_expr' => 'endsWith',
+            ],
+            'contains' => [
+                'label'       => 'mautic.core.operator.contains',
+                'expr'        => 'contains',
+                'negate_expr' => 'contains',
+            ],
         ];
 
         return ($operator === null) ? $operatorOptions : $operatorOptions[$operator];
@@ -835,5 +969,179 @@ class FormModel extends CommonFormModel
         $results = $q->execute()->fetchAll();
 
         return $results;
+    }
+
+    /**
+     * Load HTML consider Libxml < 2.7.8.
+     *
+     * @param $html
+     */
+    private function loadHTML(&$dom, $html)
+    {
+        if (defined('LIBXML_HTML_NOIMPLIED') && defined('LIBXML_HTML_NODEFDTD')) {
+            $dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        } else {
+            $dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+        }
+    }
+
+    /**
+     * Save HTML consider Libxml < 2.7.8.
+     *
+     * @param $html
+     *
+     * @return string
+     */
+    private function saveHTML($dom, $html)
+    {
+        if (defined('LIBXML_HTML_NOIMPLIED') && defined('LIBXML_HTML_NODEFDTD')) {
+            return $dom->saveHTML($html);
+        } else {
+            // remove DOCTYPE, <html>, and <body> tags for old libxml
+            return preg_replace('/^<!DOCTYPE.+?>/', '', str_replace(['<html>', '</html>', '<body>', '</body>'], ['', '', '', ''], $dom->saveHTML($html)));
+        }
+    }
+
+    /**
+     * Extract script from html.
+     *
+     * @param $html
+     *
+     * @return array
+     */
+    private function extractScriptTag($html)
+    {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $this->loadHTML($dom, $html);
+        $items = $dom->getElementsByTagName('script');
+
+        $scripts = [];
+        foreach ($items as $script) {
+            $scripts[] = $this->saveHTML($dom, $script);
+        }
+
+        return $scripts;
+    }
+
+    /**
+     * Remove script from html.
+     *
+     * @param $html
+     *
+     * @return string
+     */
+    private function removeScriptTag($html)
+    {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $this->loadHTML($dom, '<div>'.$html.'</div>');
+        $items = $dom->getElementsByTagName('script');
+
+        $remove = [];
+        foreach ($items as $item) {
+            $remove[] = $item;
+        }
+
+        foreach ($remove as $item) {
+            $item->parentNode->removeChild($item);
+        }
+
+        $root   = $dom->documentElement;
+        $result = '';
+        foreach ($root->childNodes as $childNode) {
+            $result .= $this->saveHTML($dom, $childNode);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Generate dom manipulation javascript to include all script.
+     *
+     * @param $html
+     *
+     * @return string
+     */
+    private function generateJsScript($html)
+    {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $this->loadHTML($dom, '<div>'.$html.'</div>');
+        $items = $dom->getElementsByTagName('script');
+
+        $javascript = '';
+        foreach ($items as $key => $script) {
+            if ($script->hasAttribute('src')) {
+                $javascript .= "
+                var script$key = document.createElement('script');
+                script$key.src = '".$script->getAttribute('src')."';
+                document.getElementsByTagName('head')[0].appendChild(script$key);";
+            } else {
+                $scriptContent = $script->nodeValue;
+                $scriptContent = str_replace(["\r\n", "\n", '"'], ['', '', '\"'], $scriptContent);
+
+                $javascript .= "
+                var inlineScript$key = document.createTextNode(\"$scriptContent\");
+                var script$key       = document.createElement('script');
+                script$key.appendChild(inlineScript$key);
+                document.getElementsByTagName('head')[0].appendChild(script$key);";
+            }
+        }
+
+        return $javascript;
+    }
+
+    /**
+     * Finds out whether the.
+     *
+     * @param Field $field
+     */
+    private function addLeadFieldOptions(Field $formField)
+    {
+        $formFieldProps    = $formField->getProperties();
+        $contactFieldAlias = $formField->getLeadField();
+
+        if (empty($formFieldProps['syncList']) || empty($contactFieldAlias)) {
+            return;
+        }
+
+        $contactField = $this->leadFieldModel->getEntityByAlias($contactFieldAlias);
+
+        if (empty($contactField) || !in_array($contactField->getType(), ContactFieldHelper::getListTypes())) {
+            return;
+        }
+
+        $contactFieldProps = $contactField->getProperties();
+
+        switch ($contactField->getType()) {
+            case 'select':
+            case 'multiselect':
+            case 'lookup':
+                $list = isset($contactFieldProps['list']) ? $contactFieldProps['list'] : [];
+                break;
+            case 'boolean':
+                $list = [$contactFieldProps['no'], $contactFieldProps['yes']];
+                break;
+            case 'country':
+                $list = ContactFieldHelper::getCountryChoices();
+                break;
+            case 'region':
+                $list = ContactFieldHelper::getRegionChoices();
+                break;
+            case 'timezone':
+                $list = ContactFieldHelper::getTimezonesChoices();
+                break;
+            case 'locale':
+                $list = ContactFieldHelper::getLocaleChoices();
+                break;
+            default:
+                return;
+        }
+
+        if (!empty($list)) {
+            $formFieldProps['list'] = ['list' => $list];
+            $formField->setProperties($formFieldProps);
+        }
     }
 }

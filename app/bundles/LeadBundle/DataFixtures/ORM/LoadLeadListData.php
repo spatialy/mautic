@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -62,7 +63,7 @@ class LoadLeadListData extends AbstractFixture implements OrderedFixtureInterfac
         $manager->persist($list);
         $manager->flush();
 
-        $this->container->get('mautic.factory')->getModel('lead.list')->rebuildListLeads($list);
+        $this->container->get('mautic.lead.model.list')->rebuildListLeads($list);
     }
 
     /**

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -354,7 +355,6 @@ class TriggerEventController extends CommonFormController
         $triggerEvent = (array_key_exists($objectId, $events)) ? $events[$objectId] : null;
 
         if ($this->request->getMethod() == 'POST' && $triggerEvent !== null) {
-
             //add the field to the delete list
             if (in_array($objectId, $delete)) {
                 $key = array_search($objectId, $delete);

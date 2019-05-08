@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -90,6 +91,11 @@ class PublicController extends CommonFormController
                 }
 
                 $response = new Response();
+
+                if ($entity->getDisallow()) {
+                    $response->headers->set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+                }
+
                 $response->headers->set('Content-Type', $entity->getFileMimeType());
 
                 $stream = $this->request->get('stream', 0);
@@ -104,6 +110,6 @@ class PublicController extends CommonFormController
 
         $model->trackDownload($entity, $this->request, 404);
 
-        $this->notFound();
+        return $this->notFound();
     }
 }

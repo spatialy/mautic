@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -43,6 +44,7 @@ class StageModel extends CommonFormModel
      * @var LeadModel
      */
     protected $leadModel;
+
     /**
      * PointModel constructor.
      *
@@ -54,6 +56,7 @@ class StageModel extends CommonFormModel
         $this->session   = $session;
         $this->leadModel = $leadModel;
     }
+
     /**
      * {@inheritdoc}
      *
@@ -198,7 +201,7 @@ class StageModel extends CommonFormModel
     }
 
     /**
-     * @return mixed
+     * @return array
      */
     public function getUserStages()
     {

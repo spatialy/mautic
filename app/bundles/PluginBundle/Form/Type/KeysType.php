@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -60,8 +61,9 @@ class KeysType extends AbstractType
                     'label'      => $label,
                     'label_attr' => ['class' => 'control-label'],
                     'attr'       => [
-                        'class'       => 'form-control',
-                        'placeholder' => ($type == 'password') ? '**************' : '',
+                        'class'        => 'form-control',
+                        'placeholder'  => ($type == 'password') ? '**************' : '',
+                        'autocomplete' => 'off',
                     ],
                     'required'       => $required,
                     'constraints'    => $constraints,

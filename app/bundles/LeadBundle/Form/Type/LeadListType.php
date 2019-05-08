@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -40,6 +41,7 @@ class LeadListType extends AbstractType
         $resolver->setDefaults([
             'choices' => function (Options $options) use ($model) {
                 $lists = (empty($options['global_only'])) ? $model->getUserLists() : $model->getGlobalLists();
+                $lists = (empty($options['preference_center_only'])) ? $lists : $model->getPreferenceCenterLists();
 
                 $choices = [];
                 foreach ($lists as $l) {
@@ -48,8 +50,9 @@ class LeadListType extends AbstractType
 
                 return $choices;
             },
-            'global_only' => false,
-            'required'    => false,
+            'global_only'            => false,
+            'preference_center_only' => false,
+            'required'               => false,
         ]);
     }
 

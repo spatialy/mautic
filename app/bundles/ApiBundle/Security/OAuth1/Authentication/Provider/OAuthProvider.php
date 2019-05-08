@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -67,6 +68,7 @@ class OAuthProvider extends \Bazinga\OAuthServerBundle\Security\Authentification
 
         throw new AuthenticationException($translator->trans('mautic.api.oauth.auth.failed'));
     }
+
     /**
      * {@inheritdoc}
      */

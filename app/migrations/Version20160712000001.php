@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -32,6 +33,7 @@ class Version20160712000001 extends AbstractMauticMigration
             throw new SkipMigrationException('Schema includes this migration');
         }
     }
+
     /**
      * @param Schema $schema
      */

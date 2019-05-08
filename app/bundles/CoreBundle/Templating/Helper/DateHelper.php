@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -10,8 +11,9 @@
 
 namespace Mautic\CoreBundle\Templating\Helper;
 
-use Mautic\CoreBundle\Factory\MauticFactory;
+use Mautic\CoreBundle\Helper\DateTimeHelper;
 use Symfony\Component\Templating\Helper\Helper;
+use Symfony\Component\Translation\TranslatorInterface;
 
 class DateHelper extends Helper
 {
@@ -31,20 +33,30 @@ class DateHelper extends Helper
     protected $translator;
 
     /**
-     * @param MauticFactory $factory
+     * DateHelper constructor.
+     *
+     * @param string              $dateFullFormat
+     * @param string              $dateShortFormat
+     * @param string              $dateOnlyFormat
+     * @param string              $timeOnlyFormat
+     * @param TranslatorInterface $translator
      */
-    public function __construct(MauticFactory $factory)
-    {
+    public function __construct(
+        $dateFullFormat,
+        $dateShortFormat,
+        $dateOnlyFormat,
+        $timeOnlyFormat,
+        TranslatorInterface $translator
+    ) {
         $this->formats = [
-            'datetime' => $factory->getParameter('date_format_full'),
-            'short'    => $factory->getParameter('date_format_short'),
-            'date'     => $factory->getParameter('date_format_dateonly'),
-            'time'     => $factory->getParameter('date_format_timeonly'),
+            'datetime' => $dateFullFormat,
+            'short'    => $dateShortFormat,
+            'date'     => $dateOnlyFormat,
+            'time'     => $timeOnlyFormat,
         ];
 
-        $this->helper = $factory->getDate();
-
-        $this->translator = $factory->getTranslator();
+        $this->helper     = new DateTimeHelper(null, null, 'local');
+        $this->translator = $translator;
     }
 
     /**
@@ -158,6 +170,12 @@ class DateHelper extends Helper
             return '';
         }
 
+        if ($datetime instanceof \DateTime) {
+            // Fix time shift with timezone conversion into string representation
+            $timezone  = ($datetime->getTimezone()->getName() === 'UTC') ? 'utc' : $timezone;
+            $datetime  = $datetime->format($fromFormat);
+        }
+
         $this->helper->setDateTime($datetime, $fromFormat, $timezone);
 
         $textDate = $this->helper->getTextDate();
@@ -199,8 +217,13 @@ class DateHelper extends Helper
                     $formated[] = $this->translator->transChoice(
                         'mautic.core.date.'.$unit,
                         $range->{$key},
-                        ['%count%' => $range->{$key}]);
+                        ['%count%' => $range->{$key}]
+                    );
                 }
+            }
+
+            if (empty($formated)) {
+                return $this->translator->trans('mautic.core.date.less.than.second');
             }
 
             return implode(' ', $formated);

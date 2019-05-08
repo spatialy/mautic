@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -52,7 +53,7 @@ class CleanFormSubscriber implements EventSubscriberInterface
     {
         $data = $event->getData();
 
-        //clean the data
+        // clean the data
         $data = InputHelper::_($data, $this->masks);
 
         $event->setData($data);

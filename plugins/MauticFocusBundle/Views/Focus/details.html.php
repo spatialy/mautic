@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -34,7 +35,7 @@ $view['slots']->set(
                 'close' => $view['security']->isGranted('plugin:focus:items:view'),
             ],
             'routeBase' => 'focus',
-            'langVar'   => 'mautic.focus',
+            'langVar'   => 'focus',
         ]
     )
 );
@@ -115,6 +116,7 @@ $view['slots']->set(
             </div>
             <!--/ stats -->
 
+            <?php echo $view['content']->getCustomContent('details.stats.graph.below', $mauticTemplateVars); ?>
 
             <!-- tabs controls -->
             <?php if (!empty($trackables)): ?>

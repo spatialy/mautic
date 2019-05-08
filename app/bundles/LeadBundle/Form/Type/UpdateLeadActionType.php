@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -30,6 +31,7 @@ class UpdateLeadActionType extends AbstractType
     {
         $this->factory = $factory;
     }
+
     /**
      * @param FormBuilderInterface $builder
      * @param array                $options

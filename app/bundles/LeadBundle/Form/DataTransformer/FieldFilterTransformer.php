@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -28,6 +29,7 @@ class FieldFilterTransformer implements DataTransformerInterface
             $string = $translator->trans($string);
         }
     }
+
     /**
      * From DB format to form format.
      *

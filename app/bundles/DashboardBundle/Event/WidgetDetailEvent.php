@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -42,7 +43,7 @@ class WidgetDetailEvent extends CommonEvent
     public function __construct(TranslatorInterface $translator)
     {
         $this->translator = $translator;
-        $this->startTime  = microtime();
+        $this->startTime  = microtime(true);
     }
 
     /**
@@ -123,7 +124,7 @@ class WidgetDetailEvent extends CommonEvent
     /**
      * Returns the widget entity.
      *
-     * @param Widget $widget
+     * @return Widget $widget
      */
     public function getWidget()
     {
@@ -160,12 +161,14 @@ class WidgetDetailEvent extends CommonEvent
     {
         $this->templateData = $templateData;
         $this->widget->setTemplateData($templateData);
-        $this->widget->setLoadTime(abs(microtime() - $this->startTime));
+        $this->widget->setLoadTime(abs(microtime(true) - $this->startTime));
 
         // Store the template data to the cache
         if (!$skipCache && $this->cacheDir && $this->widget->getCacheTimeout() > 0) {
             $cache = new CacheStorageHelper($this->cacheDir, $this->uniqueCacheDir);
-            $cache->set($this->getUniqueWidgetId(), $templateData);
+            // must pass a DateTime object or a int of seconds to expire as 3rd attribute to set().
+            $expireTime = $this->widget->getCacheTimeout() * 60;
+            $cache->set($this->getUniqueWidgetId(), $templateData, (int) $expireTime);
         }
     }
 
@@ -253,7 +256,7 @@ class WidgetDetailEvent extends CommonEvent
     /**
      * Get the Translator object.
      *
-     * @return Translator $translator
+     * @return TranslatorInterface
      */
     public function getTranslator()
     {

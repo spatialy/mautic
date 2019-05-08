@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -12,12 +13,12 @@ namespace Mautic\ConfigBundle\Model;
 
 use Mautic\CoreBundle\Helper\CoreParametersHelper;
 use Mautic\CoreBundle\Helper\PathsHelper;
-use Mautic\CoreBundle\Model\AbstractCommonModel;
+use Symfony\Component\Translation\TranslatorInterface;
 
 /**
  * Class SysinfoModel.
  */
-class SysinfoModel extends AbstractCommonModel
+class SysinfoModel
 {
     protected $phpInfo;
     protected $folders;
@@ -33,15 +34,22 @@ class SysinfoModel extends AbstractCommonModel
     protected $coreParametersHelper;
 
     /**
+     * @var TranslatorInterface
+     */
+    private $translator;
+
+    /**
      * SysinfoModel constructor.
      *
      * @param PathsHelper          $pathsHelper
      * @param CoreParametersHelper $coreParametersHelper
+     * @param TranslatorInterface  $translator
      */
-    public function __construct(PathsHelper $pathsHelper, CoreParametersHelper $coreParametersHelper)
+    public function __construct(PathsHelper $pathsHelper, CoreParametersHelper $coreParametersHelper, TranslatorInterface $translator)
     {
         $this->pathsHelper          = $pathsHelper;
         $this->coreParametersHelper = $coreParametersHelper;
+        $this->translator           = $translator;
     }
 
     /**
@@ -123,7 +131,7 @@ class SysinfoModel extends AbstractCommonModel
      *
      * @param int $lines
      *
-     * @return array|null
+     * @return string
      */
     public function getLogTail($lines = 10)
     {
@@ -149,7 +157,6 @@ class SysinfoModel extends AbstractCommonModel
     {
         $f      = fopen($filename, 'rb');
         $output = '';
-        $chunk  = '';
 
         fseek($f, -1, SEEK_END);
 

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -11,11 +12,13 @@
 namespace Mautic\CampaignBundle\Entity;
 
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
 use Mautic\ApiBundle\Serializer\Driver\ApiMetadataDriver;
 use Mautic\CoreBundle\Doctrine\Mapping\ClassMetadataBuilder;
 use Mautic\CoreBundle\Entity\FormEntity;
 use Mautic\FormBundle\Entity\Form;
+use Mautic\LeadBundle\Entity\Lead as Contact;
 use Mautic\LeadBundle\Entity\LeadList;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Mapping\ClassMetadata;
@@ -79,6 +82,11 @@ class Campaign extends FormEntity
      * @var array
      */
     private $canvasSettings = [];
+
+    /**
+     * @var bool
+     */
+    private $allowRestart = false;
 
     /**
      * Constructor.
@@ -150,6 +158,8 @@ class Campaign extends FormEntity
             ->columnName('canvas_settings')
             ->nullable()
             ->build();
+
+        $builder->addNamedField('allowRestart', 'integer', 'allow_restart');
     }
 
     /**
@@ -157,9 +167,14 @@ class Campaign extends FormEntity
      */
     public static function loadValidatorMetadata(ClassMetadata $metadata)
     {
-        $metadata->addPropertyConstraint('name', new Assert\NotBlank([
-            'message' => 'mautic.core.name.required',
-        ]));
+        $metadata->addPropertyConstraint(
+            'name',
+            new Assert\NotBlank(
+                [
+                    'message' => 'mautic.core.name.required',
+                ]
+            )
+        );
     }
 
     /**
@@ -180,13 +195,25 @@ class Campaign extends FormEntity
             )
             ->addProperties(
                 [
+                    'allowRestart',
                     'publishUp',
                     'publishDown',
                     'events',
-                    'leads',
                     'forms',
-                    'lists',
+                    'lists', // @deprecated, will be renamed to 'segments' in 3.0.0
                     'canvasSettings',
+                ]
+            )
+            ->setGroupPrefix('campaignBasic')
+            ->addListProperties(
+                [
+                    'id',
+                    'name',
+                    'description',
+                    'allowRestart',
+                    'events',
+                    'publishUp',
+                    'publishDown',
                 ]
             )
             ->build();
@@ -214,8 +241,8 @@ class Campaign extends FormEntity
             if ($currentId != $newId) {
                 $this->changes[$prop] = [$currentId, $newId];
             }
-        } elseif ($current != $val) {
-            $this->changes[$prop] = [$current, $val];
+        } else {
+            parent::isChanged($prop, $val);
         }
     }
 
@@ -280,6 +307,22 @@ class Campaign extends FormEntity
     }
 
     /**
+     * Calls $this->addEvent on every item in the collection.
+     *
+     * @param array $events
+     *
+     * @return Campaign
+     */
+    public function addEvents(array $events)
+    {
+        foreach ($events as $id => $event) {
+            $this->addEvent($id, $event);
+        }
+
+        return $this;
+    }
+
+    /**
      * Add events.
      *
      * @param                                     $key
@@ -312,11 +355,74 @@ class Campaign extends FormEntity
     /**
      * Get events.
      *
-     * @return \Doctrine\Common\Collections\Collection
+     * @return \Doctrine\Common\Collections\ArrayCollection
      */
     public function getEvents()
     {
         return $this->events;
+    }
+
+    /**
+     * @return ArrayCollection
+     */
+    public function getRootEvents()
+    {
+        $criteria = Criteria::create()->where(Criteria::expr()->isNull('parent'));
+        $events   = $this->getEvents()->matching($criteria);
+
+        // Doctrine loses the indexBy mapping definition when using matching so we have to manually reset them.
+        // @see https://github.com/doctrine/doctrine2/issues/4693
+        $keyedArrayCollection = new ArrayCollection();
+        /** @var Event $event */
+        foreach ($events as $event) {
+            $keyedArrayCollection->set($event->getId(), $event);
+        }
+
+        unset($events);
+
+        return $keyedArrayCollection;
+    }
+
+    /**
+     * @return ArrayCollection
+     */
+    public function getInactionBasedEvents()
+    {
+        $criteria = Criteria::create()->where(Criteria::expr()->eq('decisionPath', Event::PATH_INACTION));
+        $events   = $this->getEvents()->matching($criteria);
+
+        // Doctrine loses the indexBy mapping definition when using matching so we have to manually reset them.
+        // @see https://github.com/doctrine/doctrine2/issues/4693
+        $keyedArrayCollection = new ArrayCollection();
+        /** @var Event $event */
+        foreach ($events as $event) {
+            $keyedArrayCollection->set($event->getId(), $event);
+        }
+
+        unset($events);
+
+        return $keyedArrayCollection;
+    }
+
+    /**
+     * @return ArrayCollection
+     */
+    public function getEventsByType($type)
+    {
+        $criteria = Criteria::create()->where(Criteria::expr()->eq('eventType', $type));
+        $events   = $this->getEvents()->matching($criteria);
+
+        // Doctrine loses the indexBy mapping definition when using matching so we have to manually reset them.
+        // @see https://github.com/doctrine/doctrine2/issues/4693
+        $keyedArrayCollection = new ArrayCollection();
+        /** @var Event $event */
+        foreach ($events as $event) {
+            $keyedArrayCollection->set($event->getId(), $event);
+        }
+
+        unset($events);
+
+        return $keyedArrayCollection;
     }
 
     /**
@@ -389,8 +495,8 @@ class Campaign extends FormEntity
     /**
      * Add lead.
      *
-     * @param                                    $key
-     * @param \Mautic\CampaignBundle\Entity\Lead $lead
+     * @param      $key
+     * @param Lead $lead
      *
      * @return Campaign
      */
@@ -420,7 +526,7 @@ class Campaign extends FormEntity
     /**
      * Get leads.
      *
-     * @return \Doctrine\Common\Collections\Collection
+     * @return Lead[]|\Doctrine\Common\Collections\Collection
      */
     public function getLeads()
     {
@@ -444,7 +550,7 @@ class Campaign extends FormEntity
      */
     public function addList(LeadList $list)
     {
-        $this->lists[] = $list;
+        $this->lists[$list->getId()] = $list;
 
         $this->changes['lists']['added'][$list->getId()] = $list->getName();
 
@@ -511,5 +617,53 @@ class Campaign extends FormEntity
     public function setCanvasSettings(array $canvasSettings)
     {
         $this->canvasSettings = $canvasSettings;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getAllowRestart()
+    {
+        return $this->allowRestart;
+    }
+
+    /**
+     * @return bool
+     */
+    public function allowRestart()
+    {
+        return $this->getAllowRestart();
+    }
+
+    /**
+     * @param bool $allowRestart
+     *
+     * @return Campaign
+     */
+    public function setAllowRestart($allowRestart)
+    {
+        $this->isChanged('allowRestart', $allowRestart);
+
+        $this->allowRestart = $allowRestart;
+
+        return $this;
+    }
+
+    /**
+     * Get contact membership.
+     *
+     * @param Contact $contact
+     *
+     * @return \Doctrine\Common\Collections\Collection
+     */
+    public function getContactMembership(Contact $contact)
+    {
+        return $this->leads->matching(
+            Criteria::create()
+                    ->where(
+                        Criteria::expr()->eq('lead', $contact)
+                    )
+                    ->orderBy(['dateAdded' => Criteria::DESC])
+        );
     }
 }

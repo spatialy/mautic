@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -119,7 +120,6 @@ class TemplateReference extends BaseTemplateReference
         }
 
         if (empty($template)) {
-
             //try the parent
             return parent::getPath();
         }

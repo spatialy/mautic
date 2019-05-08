@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -70,6 +71,8 @@ class ListLead
         $builder->createField('manuallyAdded', 'boolean')
             ->columnName('manually_added')
             ->build();
+
+        $builder->addIndex(['manually_removed'], 'manually_removed');
     }
 
     /**

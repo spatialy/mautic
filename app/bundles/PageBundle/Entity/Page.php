@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -114,6 +115,16 @@ class Page extends FormEntity implements TranslationEntityInterface, VariantEnti
     private $category;
 
     /**
+     * @var bool
+     */
+    private $isPreferenceCenter;
+
+    /**
+     * @var bool
+     */
+    private $noIndex;
+
+    /**
      * Used to identify the page for the builder.
      *
      * @var
@@ -194,10 +205,20 @@ class Page extends FormEntity implements TranslationEntityInterface, VariantEnti
         $builder->createField('redirectUrl', 'string')
             ->columnName('redirect_url')
             ->nullable()
-            ->length(100)
+            ->length(2048)
             ->build();
 
         $builder->addCategory();
+
+        $builder->createField('isPreferenceCenter', 'boolean')
+            ->columnName('is_preference_center')
+            ->nullable()
+            ->build();
+
+        $builder->createField('noIndex', 'boolean')
+            ->columnName('no_index')
+            ->nullable()
+            ->build();
 
         self::addTranslationMetadata($builder, self::class);
         self::addVariantMetadata($builder, self::class);
@@ -282,12 +303,16 @@ class Page extends FormEntity implements TranslationEntityInterface, VariantEnti
                     'metaDescription',
                     'redirectType',
                     'redirectUrl',
+                    'isPreferenceCenter',
+                    'noIndex',
                     'variantSettings',
                     'variantStartDate',
                     'variantParent',
                     'variantChildren',
                     'translationParent',
                     'translationChildren',
+                    'template',
+                    'customHtml',
                 ]
             )
             ->setMaxDepth(1, 'variantParent')
@@ -580,6 +605,52 @@ class Page extends FormEntity implements TranslationEntityInterface, VariantEnti
     public function getCategory()
     {
         return $this->category;
+    }
+
+    /**
+     * Set isPreferenceCenter.
+     *
+     * @param bool $isPreferenceCenter
+     *
+     * @return Page
+     */
+    public function setIsPreferenceCenter($isPreferenceCenter)
+    {
+        $this->isChanged('isPreferenceCenter', $isPreferenceCenter);
+        $this->isPreferenceCenter = $isPreferenceCenter;
+
+        return $this;
+    }
+
+    /**
+     * Get isPreferenceCenter.
+     *
+     * @return bool
+     */
+    public function getIsPreferenceCenter()
+    {
+        return $this->isPreferenceCenter;
+    }
+
+    /**
+     * Set noIndex.
+     *
+     * @param bool $noIndex
+     */
+    public function setNoIndex($noIndex)
+    {
+        $this->isChanged('noIndex', $noIndex);
+        $this->noIndex = $noIndex;
+    }
+
+    /**
+     * Get noIndex.
+     *
+     * @return bool
+     */
+    public function getNoIndex()
+    {
+        return $this->noIndex;
     }
 
     /**

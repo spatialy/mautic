@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -102,10 +103,13 @@ class ChartQuery extends AbstractChart
                     if (isset($value['value'])) {
                         $query->setParameter($valId, $value['value']);
                     }
+                } elseif (isset($value['subquery'])) {
+                    $query->andWhere($value['subquery']);
                 } else {
+                    $column = str_replace('t.', '', $column);
+                    $valId  = str_replace('t.', '', $valId);
                     if (is_array($value)) {
-                        $query->andWhere('t.'.$column.' IN(:'.$valId.')');
-                        $query->setParameter($valId, implode(',', $value));
+                        $query->andWhere($query->expr()->in('t.'.$column, $value));
                     } else {
                         $query->andWhere('t.'.$column.' = :'.$valId);
                         $query->setParameter($valId, $value);
@@ -194,13 +198,13 @@ class ChartQuery extends AbstractChart
      *
      * @return \Doctrine\DBAL\Query\QueryBuilder
      */
-    public function prepareTimeDataQuery($table, $column, $filters = [])
+    public function prepareTimeDataQuery($table, $column, $filters = [], $countColumn = '*', $isEnumerable = true)
     {
         // Convert time unitst to the right form for current database platform
         $query = $this->connection->createQueryBuilder();
-        $query->from(MAUTIC_TABLE_PREFIX.$table, 't');
+        $query->from($this->prepareTable($table), 't');
 
-        $this->modifyTimeDataQuery($query, $column);
+        $this->modifyTimeDataQuery($query, $column, 't', $countColumn, $isEnumerable);
         $this->applyFilters($query, $filters);
         $this->applyDateFilters($query, $column);
 
@@ -211,10 +215,12 @@ class ChartQuery extends AbstractChart
      * Modify database query for fetching the line time chart data.
      *
      * @param QueryBuilder $query
-     * @param string       $column      name
+     * @param string       $column       name
      * @param string       $tablePrefix
+     * @param string       $countColumn
+     * @param bool|string  $isEnumerable true = COUNT, string sum = SUM
      */
-    public function modifyTimeDataQuery(&$query, $column, $tablePrefix = 't')
+    public function modifyTimeDataQuery(&$query, $column, $tablePrefix = 't', $countColumn = '*', $isEnumerable = true)
     {
         // Convert time unitst to the right form for current database platform
         $dbUnit  = $this->translateTimeUnit($this->unit);
@@ -226,7 +232,15 @@ class ChartQuery extends AbstractChart
             unset($filters['groupBy']);
         }
         $dateConstruct = 'DATE_FORMAT('.$tablePrefix.'.'.$column.', \''.$dbUnit.'\')';
-        $query->select($dateConstruct.' AS date, COUNT(*) AS count')
+
+        if ($isEnumerable === true) {
+            $count = 'COUNT('.$countColumn.') AS count';
+        } elseif ($isEnumerable == 'sum') {
+            $count = 'SUM('.$countColumn.') AS count';
+        } else {
+            $count = $countColumn.' AS count';
+        }
+        $query->select($dateConstruct.' AS date, '.$count)
             ->groupBy($dateConstruct.$groupBy);
 
         $query->orderBy($dateConstruct, 'ASC')->setMaxResults($limit);
@@ -244,6 +258,23 @@ class ChartQuery extends AbstractChart
     public function fetchTimeData($table, $column, $filters = [])
     {
         $query = $this->prepareTimeDataQuery($table, $column, $filters);
+
+        return $this->loadAndBuildTimeData($query);
+    }
+
+    /**
+     * Fetch data and sum it for a time related dataset.
+     *
+     * @param string $table     without prefix
+     * @param string $column    name. The column must be type of datetime
+     * @param array  $filters   will be added to where claues
+     * @param string $sumColumn name that will be summed
+     *
+     * @return array
+     */
+    public function fetchSumTimeData($table, $column, $filters = [], $sumColumn)
+    {
+        $query = $this->prepareTimeDataQuery($table, $column, $filters, $sumColumn, 'sum');
 
         return $this->loadAndBuildTimeData($query);
     }
@@ -396,7 +427,7 @@ class ChartQuery extends AbstractChart
     public function getCountQuery($table, $uniqueColumn, $dateColumn = null, $filters = [], $options = [], $tablePrefix = 't')
     {
         $query = $this->connection->createQueryBuilder();
-        $query->from(MAUTIC_TABLE_PREFIX.$table, $tablePrefix);
+        $query->from($this->prepareTable($table), $tablePrefix);
         $this->modifyCountQuery($query, $uniqueColumn, $dateColumn, $tablePrefix);
         $this->applyFilters($query, $filters);
         $this->applyDateFilters($query, $dateColumn);
@@ -490,7 +521,7 @@ class ChartQuery extends AbstractChart
     public function getCountDateDiffQuery($table, $dateColumn1, $dateColumn2, $startSecond = 0, $endSecond = 60, $filters = [], $tablePrefix = 't')
     {
         $query = $this->connection->createQueryBuilder();
-        $query->from(MAUTIC_TABLE_PREFIX.$table, $tablePrefix);
+        $query->from($this->prepareTable($table), $tablePrefix);
         $this->modifyCountDateDiffQuery($query, $dateColumn1, $dateColumn2, $startSecond, $endSecond, $tablePrefix);
         $this->applyFilters($query, $filters);
         $this->applyDateFilters($query, $dateColumn1);
@@ -531,5 +562,23 @@ class ChartQuery extends AbstractChart
         $data = $query->execute()->fetch();
 
         return (int) $data['count'];
+    }
+
+    /**
+     * @param $table
+     *
+     * @return mixed
+     */
+    protected function prepareTable($table)
+    {
+        if (MAUTIC_TABLE_PREFIX && strpos($table, MAUTIC_TABLE_PREFIX) === 0) {
+            return $table;
+        }
+
+        if (strpos($table, '(') === 0) {
+            return $table;
+        }
+
+        return MAUTIC_TABLE_PREFIX.$table;
     }
 }

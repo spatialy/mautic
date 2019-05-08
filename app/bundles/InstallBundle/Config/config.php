@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -45,6 +46,7 @@ return [
                     'mautic.configurator',
                     '%kernel.root_dir%',
                     'request_stack',
+                    'mautic.cipher.openssl',
                 ],
                 'tag'          => 'mautic.configurator.step',
                 'tagArguments' => [

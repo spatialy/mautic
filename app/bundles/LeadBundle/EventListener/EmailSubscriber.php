@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -52,36 +53,8 @@ class EmailSubscriber extends CommonSubscriber
     public function onEmailBuild(EmailBuilderEvent $event)
     {
         $tokenHelper = new BuilderTokenHelper($this->factory, 'lead.field', 'lead:fields', 'MauticLeadBundle');
-        $tokenHelper->setPermissionSet(['lead:fields:full']);
-
-        if ($event->tokenSectionsRequested()) {
-            //add email tokens
-            $event->addTokenSection(
-                'lead.emailtokens',
-                'mautic.lead.email.header.index',
-                $tokenHelper->getTokenContent(
-                    [
-                        'filter' => [
-                            'force' => [
-                                [
-                                    'column' => 'f.isPublished',
-                                    'expr'   => 'eq',
-                                    'value'  => true,
-                                ],
-                            ],
-                        ],
-                        'orderBy'        => 'f.label',
-                        'orderByDir'     => 'ASC',
-                        'hydration_mode' => 'HYDRATE_ARRAY',
-                    ]
-                ),
-                255
-            );
-        }
-
-        if ($event->tokensRequested(self::$leadFieldRegex)) {
-            $event->addTokensFromHelper($tokenHelper, self::$leadFieldRegex, 'label', 'alias', true);
-        }
+        // the permissions are for viewing contact data, not for managing contact fields
+        $tokenHelper->setPermissionSet(['lead:leads:viewown', 'lead:leads:viewother']);
 
         if ($event->tokensRequested(self::$contactFieldRegex)) {
             $event->addTokensFromHelper($tokenHelper, self::$contactFieldRegex, 'label', 'alias', true);
@@ -105,6 +78,8 @@ class EmailSubscriber extends CommonSubscriber
         $content = $event->getSubject();
         $content .= $event->getContent();
         $content .= $event->getPlainText();
+        $content .= implode(' ', $event->getTextHeaders());
+
         $lead = $event->getLead();
 
         $tokenList = TokenHelper::findLeadTokens($content, $lead);

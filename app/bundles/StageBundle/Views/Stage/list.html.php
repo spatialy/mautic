@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -21,8 +22,12 @@ if ($tmpl == 'index') {
                 echo $view->render(
                     'MauticCoreBundle:Helper:tableheader.html.php',
                     [
-                        'checkall' => 'true',
-                        'target'   => '#stageTable',
+                        'checkall'        => 'true',
+                        'target'          => '#stageTable',
+                        'routeBase'       => 'stage',
+                        'templateButtons' => [
+                            'delete' => $permissions['stage:stages:delete'],
+                        ],
                     ]
                 );
 
@@ -85,12 +90,16 @@ if ($tmpl == 'index') {
                                 'MauticCoreBundle:Helper:publishstatus_icon.html.php',
                                 ['item' => $item, 'model' => 'stage']
                             ); ?>
+                            <?php if ($permissions['stage:stages:edit']): ?>
                             <a href="<?php echo $view['router']->generate(
                                 'mautic_stage_action',
                                 ['objectAction' => 'edit', 'objectId' => $item->getId()]
                             ); ?>" data-toggle="ajax">
                                 <?php echo $item->getName(); ?>
                             </a>
+                            <?php else: ?>
+                                <?php echo $item->getName(); ?>
+                            <?php endif; ?>
                         </div>
                         <?php if ($description = $item->getDescription()): ?>
                             <div class="text-muted mt-4">

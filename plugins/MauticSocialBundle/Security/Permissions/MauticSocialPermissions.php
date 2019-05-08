@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic, Inc. All rights reserved
  * @author      Mautic, Inc
  *
@@ -26,6 +27,7 @@ class MauticSocialPermissions extends AbstractPermissions
         parent::__construct($params);
         $this->addStandardPermissions('categories');
         $this->addStandardPermissions('monitoring');
+        $this->addExtendedPermissions('tweets');
     }
 
     /**
@@ -48,5 +50,6 @@ class MauticSocialPermissions extends AbstractPermissions
     {
         $this->addStandardFormFields('mauticSocial', 'categories', $builder, $data);
         $this->addStandardFormFields('mauticSocial', 'monitoring', $builder, $data);
+        $this->addExtendedFormFields('mauticSocial', 'tweets', $builder, $data);
     }
 }

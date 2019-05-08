@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -52,8 +53,7 @@ class UserHelper
                 return null;
             }
 
-            $user          = new User();
-            $user->isGuest = true;
+            $user = new User(true);
         }
 
         return $user;

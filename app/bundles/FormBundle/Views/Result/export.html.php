@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -36,8 +37,8 @@ $view['slots']->set('headerTitle', $view['translator']->trans('mautic.form.resul
         <?php foreach ($results as $item):?>
             <tr>
                 <td><?php echo $item['id']; ?></td>
-                <td><?php echo $view['date']->toFull($item['dateSubmitted']); ?></td>
-                <td><?php echo $item['ipAddress']['ipAddress']; ?></td>
+                <td><?php echo $view['date']->toFull($item['dateSubmitted'], 'UTC'); ?></td>
+                <td><?php echo $item['ipAddress']; ?></td>
                 <?php foreach ($item['results'] as $r):?>
                     <td><?php echo $r['value']; ?></td>
                 <?php endforeach; ?>

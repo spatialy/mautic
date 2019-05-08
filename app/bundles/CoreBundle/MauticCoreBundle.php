@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -29,5 +30,6 @@ class MauticCoreBundle extends Bundle
         $container->addCompilerPass(new Compiler\TranslationsPass());
         $container->addCompilerPass(new Compiler\ModelPass());
         $container->addCompilerPass(new Compiler\EventPass());
+        $container->addCompilerPass(new Compiler\IntegrationPass());
     }
 }

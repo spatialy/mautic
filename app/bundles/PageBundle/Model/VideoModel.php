@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -98,7 +99,7 @@ class VideoModel extends FormModel
         $lead = $this->leadModel->getCurrentLead();
         $guid = $request->get('guid');
 
-        $hit = $this->getHitForLeadByGuid($lead, $guid);
+        $hit = ($lead) ? $this->getHitForLeadByGuid($lead, $guid) : new VideoHit();
 
         $hit->setGuid($guid);
         $hit->setDateHit(new \Datetime());
@@ -116,7 +117,9 @@ class VideoModel extends FormModel
         unset($query['d']);
         $hit->setQuery($query);
 
-        $hit->setLead($lead);
+        if ($lead) {
+            $hit->setLead($lead);
+        }
 
         //glean info from the IP address
         if ($details = $ipAddress->getIpDetails()) {

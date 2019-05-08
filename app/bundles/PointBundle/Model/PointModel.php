@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -96,8 +97,13 @@ class PointModel extends CommonFormModel
         if (!$entity instanceof Point) {
             throw new MethodNotAllowedHttpException(['Point']);
         }
+
         if (!empty($action)) {
             $options['action'] = $action;
+        }
+
+        if (empty($options['pointActions'])) {
+            $options['pointActions'] = $this->getPointActions();
         }
 
         return $formFactory->create('point', $entity, $options);
@@ -184,11 +190,10 @@ class PointModel extends CommonFormModel
     /**
      * Triggers a specific point change.
      *
-     * @param $type
+     * @param       $type
      * @param mixed $eventDetails passthrough from function triggering action to the callback function
      * @param mixed $typeId       Something unique to the triggering event to prevent  unnecessary duplicate calls
      * @param Lead  $lead
-     *25
      */
     public function triggerAction($type, $eventDetails = null, $typeId = null, Lead $lead = null)
     {
@@ -228,12 +233,12 @@ class PointModel extends CommonFormModel
         $completedActions = $repo->getCompletedLeadActions($type, $lead->getId());
 
         $persist = [];
+        /** @var Point $action */
         foreach ($availablePoints as $action) {
-            //if it's already been done, then skip it
-            if (isset($completedActions[$action->getId()])) {
+            //if it's already been done or not repeatable, then skip it
+            if (!$action->getRepeatable() && isset($completedActions[$action->getId()])) {
                 continue;
             }
-
             //make sure the action still exists
             if (!isset($availableActions['actions'][$action->getType()])) {
                 continue;
@@ -291,23 +296,26 @@ class PointModel extends CommonFormModel
                     $event = new PointActionEvent($action, $lead);
                     $this->dispatcher->dispatch(PointEvents::POINT_ON_ACTION, $event);
 
-                    $log = new LeadPointLog();
-                    $log->setIpAddress($ipAddress);
-                    $log->setPoint($action);
-                    $log->setLead($lead);
-                    $log->setDateFired(new \DateTime());
-
-                    $persist[] = $log;
+                    if (!$action->getRepeatable()) {
+                        $log = new LeadPointLog();
+                        $log->setIpAddress($ipAddress);
+                        $log->setPoint($action);
+                        $log->setLead($lead);
+                        $log->setDateFired(new \DateTime());
+                        $persist[] = $log;
+                    }
                 }
             }
         }
 
         if (!empty($persist)) {
-            $this->leadModel->saveEntity($lead);
             $this->getRepository()->saveEntities($persist);
-
             // Detach logs to reserve memory
             $this->em->clear('Mautic\PointBundle\Entity\LeadPointLog');
+        }
+
+        if (!empty($lead->getpointchanges())) {
+            $this->leadModel->saveEntity($lead);
         }
     }
 

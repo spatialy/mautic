@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic, Inc. All rights reserved
  * @author      Mautic, Inc
  *
@@ -29,9 +30,7 @@ class MonitoringController extends FormController
     {
         $session = $this->get('session');
 
-        if ($this->request->getMethod() == 'POST') {
-            $this->setListFilters();
-        }
+        $this->setListFilters();
 
         /** @var \MauticPlugin\MauticSocialBundle\Model\MonitoringModel $model */
         $model = $this->getModel('social.monitoring');
@@ -159,7 +158,6 @@ class MonitoringController extends FormController
             $valid = false;
             if (!$cancelled = $this->isFormCancelled($form)) {
                 if ($valid = $this->isFormValid($form)) {
-
                     //form is valid so process the data
                     $model->saveEntity($entity);
 
@@ -466,6 +464,7 @@ class MonitoringController extends FormController
                 'viewParameters' => [
                     'activeMonitoring' => $monitoringEntity,
                     'logs'             => $logs,
+                    'isEmbedded'       => $this->request->get('isEmbedded') ? $this->request->get('isEmbedded') : false,
                     'tmpl'             => $tmpl,
                     'security'         => $security,
                     'leadStats'        => $chart->render(),
@@ -517,7 +516,6 @@ class MonitoringController extends FormController
         ];
 
         if ($this->request->getMethod() == 'POST') {
-
             /** @var \MauticPlugin\MauticSocialBundle\Model\MonitoringModel $model */
             $model  = $this->getModel('social.monitoring');
             $entity = $model->getEntity($objectId);

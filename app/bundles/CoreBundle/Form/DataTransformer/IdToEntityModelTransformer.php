@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -98,7 +99,7 @@ class IdToEntityModelTransformer implements DataTransformerInterface
                 ->findOneBy([$this->id => $id])
             ;
 
-            if ($entity === null) {
+            if (null === $entity) {
                 throw new TransformationFailedException(sprintf(
                     'An entity with a/an '.$this->id.' of "%s" does not exist!',
                     $id

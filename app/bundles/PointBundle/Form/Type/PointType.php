@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -115,6 +116,15 @@ class PointType extends AbstractType
             'read_only' => $readonly,
             'data'      => $data,
         ]);
+
+        $builder->add(
+            'repeatable',
+            'yesno_button_group',
+            [
+                'label' => 'mautic.point.form.repeat',
+                'data'  => $options['data']->getRepeatable() ?: false,
+            ]
+        );
 
         $builder->add('publishUp', 'datetime', [
             'widget'     => 'single_text',

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -31,6 +32,12 @@ class TrackingPixelHelper
      */
     public static function getResponse(Request $request)
     {
+        $response = new Response();
+
+        if ('test' === MAUTIC_ENV) {
+            return $response;
+        }
+
         ignore_user_abort(true);
 
         //turn off gzip compression
@@ -39,8 +46,6 @@ class TrackingPixelHelper
         }
 
         ini_set('zlib.output_compression', 0);
-
-        $response = new Response();
 
         //removing any content encoding like gzip etc.
         $response->headers->set('Content-Encoding', 'none');

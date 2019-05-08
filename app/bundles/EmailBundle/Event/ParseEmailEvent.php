@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2015 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -33,6 +34,11 @@ class ParseEmailEvent extends Event
     private $criteriaRequests = [];
 
     /**
+     * @var array
+     */
+    private $markAsSeen = [];
+
+    /**
      * @param array $messages
      * @param array $applicableKeys
      */
@@ -53,9 +59,9 @@ class ParseEmailEvent extends Event
     }
 
     /**
-     * @param array $messages
+     * @param $messages
      *
-     * @return ParseEmailEvent
+     * @return $this
      */
     public function setMessages($messages)
     {
@@ -75,7 +81,7 @@ class ParseEmailEvent extends Event
     /**
      * @param mixed $keys
      *
-     * @return ParseEmailEvent
+     * @return $this
      */
     public function setKeys($keys)
     {
@@ -112,11 +118,12 @@ class ParseEmailEvent extends Event
     /**
      * Set a criteria request for filtering fetched mail.
      *
-     * @param $bundleKey
-     * @param $folderKeys
-     * @param $criteria     This should be a string using combinations of Mautic\EmailBundle\MonitoredEmail\Mailbox::CRITERIA_* constants
+     * @param string $bundleKey
+     * @param string $folderKeys
+     * @param string $criteria   Should be a string using combinations of Mautic\EmailBundle\MonitoredEmail\Mailbox::CRITERIA_* constants
+     * @param bool   $markAsSeen Mark the message as read after being processed
      */
-    public function setCriteriaRequest($bundleKey, $folderKeys, $criteria)
+    public function setCriteriaRequest($bundleKey, $folderKeys, $criteria, $markAsSeen = true)
     {
         if (!is_array($folderKeys)) {
             $folderKeys = [$folderKeys];
@@ -126,6 +133,7 @@ class ParseEmailEvent extends Event
             $key = $bundleKey.'_'.$folderKey;
 
             $this->criteriaRequests[$key] = $criteria;
+            $this->markAsSeen[$key]       = $markAsSeen;
         }
     }
 
@@ -135,5 +143,13 @@ class ParseEmailEvent extends Event
     public function getCriteriaRequests()
     {
         return $this->criteriaRequests;
+    }
+
+    /**
+     * @return array
+     */
+    public function getMarkAsSeenInstructions()
+    {
+        return $this->markAsSeen;
     }
 }

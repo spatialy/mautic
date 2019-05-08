@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -67,7 +68,14 @@ class TableSchemaHelper
         $this->sm           = $db->getSchemaManager();
         $this->prefix       = $prefix;
         $this->columnHelper = $columnHelper;
-        $this->schema       = new Schema([], [], $this->sm->createSchemaConfig());
+        if ($db instanceof \Doctrine\DBAL\Connections\MasterSlaveConnection) {
+            $params       = $db->getParams();
+            $schemaConfig = new \Doctrine\DBAL\Schema\SchemaConfig();
+            $schemaConfig->setName($params['master']['dbname']);
+            $this->schema = new Schema([], [], $schemaConfig);
+        } else {
+            $this->schema = new Schema([], [], $this->sm->createSchemaConfig());
+        }
     }
 
     /**
@@ -84,6 +92,8 @@ class TableSchemaHelper
      * Add an array of tables to db.
      *
      * @param array $tables
+     *
+     * @return $this
      *
      * @throws SchemaException
      */
@@ -103,6 +113,8 @@ class TableSchemaHelper
             $this->addTables[] = $table;
             $this->addTable($table, false);
         }
+
+        return $this;
     }
 
     /**
@@ -126,6 +138,8 @@ class TableSchemaHelper
      *                     )
      * @param $checkExists
      * @param $dropExisting
+     *
+     * @return $this
      *
      * @throws SchemaException
      */
@@ -173,16 +187,24 @@ class TableSchemaHelper
                 $newTable->$func($value);
             }
         }
+
+        return $this;
     }
 
     /**
-     * @param string $table
+     * @param $table
+     *
+     * @return $this
+     *
+     * @throws SchemaException
      */
     public function deleteTable($table)
     {
         if ($this->checkTableExists($table)) {
             $this->dropTables[] = $table;
         }
+
+        return $this;
     }
 
     /**

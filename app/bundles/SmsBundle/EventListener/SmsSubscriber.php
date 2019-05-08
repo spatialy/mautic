@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -20,6 +21,7 @@ use Mautic\PageBundle\Entity\Trackable;
 use Mautic\PageBundle\Helper\TokenHelper as PageTokenHelper;
 use Mautic\PageBundle\Model\TrackableModel;
 use Mautic\SmsBundle\Event\SmsEvent;
+use Mautic\SmsBundle\Helper\SmsHelper;
 use Mautic\SmsBundle\SmsEvents;
 
 /**
@@ -48,23 +50,31 @@ class SmsSubscriber extends CommonSubscriber
     protected $assetTokenHelper;
 
     /**
+     * @var SmsHelper
+     */
+    protected $smsHelper;
+
+    /**
      * DynamicContentSubscriber constructor.
      *
      * @param AuditLogModel    $auditLogModel
      * @param TrackableModel   $trackableModel
      * @param PageTokenHelper  $pageTokenHelper
      * @param AssetTokenHelper $assetTokenHelper
+     * @param SmsHelper        $smsHelper
      */
     public function __construct(
         AuditLogModel $auditLogModel,
         TrackableModel $trackableModel,
         PageTokenHelper $pageTokenHelper,
-        AssetTokenHelper $assetTokenHelper
+        AssetTokenHelper $assetTokenHelper,
+        SmsHelper $smsHelper
     ) {
         $this->auditLogModel    = $auditLogModel;
         $this->trackableModel   = $trackableModel;
         $this->pageTokenHelper  = $pageTokenHelper;
         $this->assetTokenHelper = $assetTokenHelper;
+        $this->smsHelper        = $smsHelper;
     }
 
     /**
@@ -134,19 +144,22 @@ class SmsSubscriber extends CommonSubscriber
                 $this->assetTokenHelper->findAssetTokens($content, $clickthrough)
             );
 
-            list($content, $trackables) = $this->trackableModel->parseContentForTrackables(
-                $content,
-                $tokens,
-                'sms',
-                $clickthrough['channel'][1]
-            );
+            // Disable trackable urls
+            if (!$this->smsHelper->getDisableTrackableUrls()) {
+                list($content, $trackables) = $this->trackableModel->parseContentForTrackables(
+                    $content,
+                    $tokens,
+                    'sms',
+                    $clickthrough['channel'][1]
+                );
 
-            /**
-             * @var string
-             * @var Trackable $trackable
-             */
-            foreach ($trackables as $token => $trackable) {
-                $tokens[$token] = $this->trackableModel->generateTrackableUrl($trackable, $clickthrough, true);
+                /**
+                 * @var string
+                 * @var Trackable $trackable
+                 */
+                foreach ($trackables as $token => $trackable) {
+                    $tokens[$token] = $this->trackableModel->generateTrackableUrl($trackable, $clickthrough, true);
+                }
             }
 
             $content = str_replace(array_keys($tokens), array_values($tokens), $content);

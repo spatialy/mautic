@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -72,15 +73,31 @@ class IpAddress
      */
     public static function loadApiMetadata(ApiMetadataDriver $metadata)
     {
-        $metadata->addProperties(
+        $metadata->setGroupPrefix('ipAddress')
+            ->addListProperties(
+                [
+                    ['ipAddress', 'ip'],
+                ]
+            )
+            ->addProperties(
                 [
                     'id',
                     'ipAddress',
                     'ipDetails',
                 ]
             )
-            ->addGroup('ipAddress')
+            ->addGroup('ipAddress', true)
             ->build();
+    }
+
+    /**
+     * IpAddress constructor.
+     *
+     * @param null $ipAddress
+     */
+    public function __construct($ipAddress = null)
+    {
+        $this->ipAddress = $ipAddress;
     }
 
     /**

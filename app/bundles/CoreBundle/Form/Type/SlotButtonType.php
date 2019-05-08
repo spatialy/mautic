@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -25,6 +26,21 @@ class SlotButtonType extends SlotType
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         parent::buildForm($builder, $options);
+
+        $builder->add(
+            'border-radius',
+            'number',
+            [
+                'label'      => 'mautic.core.button.border.radius',
+                'label_attr' => ['class' => 'control-label'],
+                'required'   => false,
+                'attr'       => [
+                    'class'           => 'form-control',
+                    'data-slot-param' => 'border-radius',
+                    'postaddon_text'  => 'px',
+                ],
+            ]
+        );
 
         $builder->add('link-text', 'text', [
             'label'      => 'mautic.core.button.text',

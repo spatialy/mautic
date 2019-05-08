@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -11,6 +12,14 @@
 return [
     'routes' => [
         'main' => [
+            'mautic_category_batch_contact_set' => [
+                'path'       => '/categories/batch/contact/set',
+                'controller' => 'MauticCategoryBundle:BatchContact:exec',
+            ],
+            'mautic_category_batch_contact_view' => [
+                'path'       => '/categories/batch/contact/view',
+                'controller' => 'MauticCategoryBundle:BatchContact:index',
+            ],
             'mautic_category_index' => [
                 'path'       => '/categories/{bundle}/{page}',
                 'controller' => 'MauticCategoryBundle:Category:index',
@@ -24,6 +33,14 @@ return [
                 'defaults'   => [
                     'bundle' => 'category',
                 ],
+            ],
+        ],
+        'api' => [
+            'mautic_api_categoriesstandard' => [
+                'standard_entity' => true,
+                'name'            => 'categories',
+                'path'            => '/categories',
+                'controller'      => 'MauticCategoryBundle:Api\CategoryApi',
             ],
         ],
     ],
@@ -49,22 +66,39 @@ return [
                     'mautic.core.model.auditlog',
                 ],
             ],
+            'mautic.category.button.subscriber' => [
+                'class'     => \Mautic\CategoryBundle\EventListener\ButtonSubscriber::class,
+                'arguments' => [
+                    'router',
+                    'translator',
+                ],
+            ],
         ],
         'forms' => [
             'mautic.form.type.category' => [
                 'class'     => 'Mautic\CategoryBundle\Form\Type\CategoryListType',
-                'arguments' => 'mautic.factory',
-                'alias'     => 'category',
+                'arguments' => [
+                    'doctrine.orm.entity_manager',
+                    'translator',
+                    'mautic.category.model.category',
+                    'router',
+                ],
+                'alias' => 'category',
             ],
             'mautic.form.type.category_form' => [
                 'class'     => 'Mautic\CategoryBundle\Form\Type\CategoryType',
-                'arguments' => 'mautic.factory',
                 'alias'     => 'category_form',
+                'arguments' => [
+                    'translator',
+                    'session',
+                ],
             ],
             'mautic.form.type.category_bundles_form' => [
                 'class'     => 'Mautic\CategoryBundle\Form\Type\CategoryBundlesType',
-                'arguments' => 'mautic.factory',
-                'alias'     => 'category_bundles_form',
+                'arguments' => [
+                    'event_dispatcher',
+                ],
+                'alias' => 'category_bundles_form',
             ],
         ],
         'models' => [
@@ -72,6 +106,12 @@ return [
                 'class'     => 'Mautic\CategoryBundle\Model\CategoryModel',
                 'arguments' => [
                     'request_stack',
+                ],
+            ],
+            'mautic.category.model.contact.action' => [
+                'class'     => \Mautic\CategoryBundle\Model\ContactActionModel::class,
+                'arguments' => [
+                    'mautic.lead.model.lead',
                 ],
             ],
         ],

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -10,7 +11,8 @@
 
 namespace Mautic\ConfigBundle\Event;
 
-use Mautic\CoreBundle\Factory\MauticFactory;
+use Mautic\CoreBundle\Helper\BundleHelper;
+use Mautic\CoreBundle\Helper\PathsHelper;
 use Symfony\Component\EventDispatcher\Event;
 
 /**
@@ -26,33 +28,71 @@ class ConfigBuilderEvent extends Event
     /**
      * @var array
      */
-    private $formThemes = [];
+    private $formThemes = [
+        'MauticConfigBundle:FormTheme',
+    ];
 
     /**
-     * @var MauticFactory
+     * @var PathsHelper
      */
-    private $factory;
+    private $pathsHelper;
 
     /**
-     * @param MauticFactory $factory
+     * @var BundleHelper
      */
-    public function __construct(MauticFactory $factory)
+    private $bundleHelper;
+
+    /**
+     * @var array
+     */
+    protected $encodedFields = [];
+
+    /**
+     * ConfigBuilderEvent constructor.
+     *
+     * @param PathsHelper  $pathsHelper
+     * @param BundleHelper $bundleHelper
+     */
+    public function __construct(PathsHelper $pathsHelper, BundleHelper $bundleHelper)
     {
-        $this->factory = $factory;
+        $this->pathsHelper  = $pathsHelper;
+        $this->bundleHelper = $bundleHelper;
     }
 
     /**
      * Set new form to the forms array.
      *
      * @param array $form
+     *
+     * @return $this
      */
-    public function addForm($form)
+    public function addForm(array $form)
     {
         if (isset($form['formTheme'])) {
             $this->formThemes[] = $form['formTheme'];
         }
 
         $this->forms[$form['formAlias']] = $form;
+
+        return $this;
+    }
+
+    /**
+     * Remove a form to the forms array.
+     *
+     * @param string $formAlias
+     *
+     * @return bool
+     */
+    public function removeForm($formAlias)
+    {
+        if (isset($this->forms[$formAlias])) {
+            unset($this->forms[$formAlias]);
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -76,39 +116,8 @@ class ConfigBuilderEvent extends Event
     }
 
     /**
-     * Returns the factory.
+     * Get default parameters from config defined in bundles.
      *
-     * @return MauticFactory
-     */
-    public function getFactory()
-    {
-        return $this->factory;
-    }
-
-    /**
-     * Helper method can load $parameters array from a config file.
-     *
-     * @param string $path (relative from the root dir)
-     *
-     * @return array
-     */
-    public function getParameters($path = null)
-    {
-        $paramsFile = $this->factory->getSystemPath('app').$path;
-
-        if (file_exists($paramsFile)) {
-            // Import the bundle configuration, $parameters is defined in this file
-            include $paramsFile;
-        }
-
-        if (!isset($parameters)) {
-            $parameters = [];
-        }
-
-        return $parameters;
-    }
-
-    /**
      * @param $bundle
      *
      * @return array
@@ -118,7 +127,7 @@ class ConfigBuilderEvent extends Event
         static $allBundles;
 
         if (empty($allBundles)) {
-            $allBundles = $this->factory->getMauticBundles(true);
+            $allBundles = $this->bundleHelper->getMauticBundles(true);
         }
 
         if (isset($allBundles[$bundle]) && $allBundles[$bundle]['config']['parameters']) {
@@ -126,5 +135,25 @@ class ConfigBuilderEvent extends Event
         } else {
             return [];
         }
+    }
+
+    /**
+     * @param $fields
+     *
+     * @return $this
+     */
+    public function addFileFields($fields)
+    {
+        $this->encodedFields = array_merge($this->encodedFields, (array) $fields);
+
+        return $this;
+    }
+
+    /**
+     * @return array
+     */
+    public function getFileFields()
+    {
+        return $this->encodedFields;
     }
 }

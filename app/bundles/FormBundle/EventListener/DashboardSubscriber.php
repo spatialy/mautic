@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -137,8 +138,8 @@ class DashboardSubscriber extends MainDashboardSubscriber
 
                 $event->setTemplateData([
                     'headItems' => [
-                        $event->getTranslator()->trans('mautic.form.result.thead.referrer'),
-                        $event->getTranslator()->trans('mautic.form.graph.line.submissions'),
+                        'mautic.form.result.thead.referrer',
+                        'mautic.form.graph.line.submissions',
                     ],
                     'bodyItems' => $items,
                     'raw'       => $referrers,
@@ -190,8 +191,8 @@ class DashboardSubscriber extends MainDashboardSubscriber
 
                 $event->setTemplateData([
                     'headItems' => [
-                        $event->getTranslator()->trans('mautic.form.lead'),
-                        $event->getTranslator()->trans('mautic.form.graph.line.submissions'),
+                        'mautic.form.lead',
+                        'mautic.form.graph.line.submissions',
                     ],
                     'bodyItems' => $items,
                     'raw'       => $submitters,
@@ -233,7 +234,7 @@ class DashboardSubscriber extends MainDashboardSubscriber
 
                 $event->setTemplateData([
                     'headItems' => [
-                        $event->getTranslator()->trans('mautic.dashboard.label.title'),
+                        'mautic.dashboard.label.title',
                     ],
                     'bodyItems' => $items,
                     'raw'       => $forms,

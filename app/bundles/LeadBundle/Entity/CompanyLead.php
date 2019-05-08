@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -36,9 +37,18 @@ class CompanyLead
     /**
      * @var bool
      */
+    private $primary = false;
+
+    /**
+     * @deprecated 2.9 to be removed in 3.0
+     *
+     * @var bool
+     */
     private $manuallyRemoved = false;
 
     /**
+     * @deprecated 2.9 to be removed in 3.0
+     *
      * @var bool
      */
     private $manuallyAdded = false;
@@ -55,7 +65,6 @@ class CompanyLead
 
         $builder->createManyToOne('company', 'Company')
             ->isPrimaryKey()
-            ->inversedBy('leads')
             ->addJoinColumn('company_id', 'id', false, false, 'CASCADE')
             ->build();
 
@@ -63,6 +72,12 @@ class CompanyLead
 
         $builder->addDateAdded();
 
+        $builder->createField('primary', 'boolean')
+            ->columnName('is_primary')
+            ->nullable()
+            ->build();
+
+        // @deprecated 2.9 to be removed in 3.0
         $builder->createField('manuallyRemoved', 'boolean')
             ->columnName('manually_removed')
             ->build();
@@ -129,6 +144,24 @@ class CompanyLead
     }
 
     /**
+     * @param bool $primary
+     */
+    public function setPrimary($primary)
+    {
+        $this->primary = $primary;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getPrimary()
+    {
+        return $this->primary;
+    }
+
+    /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @return bool
      */
     public function getManuallyRemoved()
@@ -137,6 +170,8 @@ class CompanyLead
     }
 
     /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @param bool $manuallyRemoved
      */
     public function setManuallyRemoved($manuallyRemoved)
@@ -145,6 +180,8 @@ class CompanyLead
     }
 
     /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @return bool
      */
     public function wasManuallyRemoved()
@@ -153,6 +190,8 @@ class CompanyLead
     }
 
     /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @return bool
      */
     public function getManuallyAdded()
@@ -161,6 +200,8 @@ class CompanyLead
     }
 
     /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @param bool $manuallyAdded
      */
     public function setManuallyAdded($manuallyAdded)
@@ -169,6 +210,8 @@ class CompanyLead
     }
 
     /**
+     * @deprecatd 2.9 to be removed in 3.0
+     *
      * @return bool
      */
     public function wasManuallyAdded()

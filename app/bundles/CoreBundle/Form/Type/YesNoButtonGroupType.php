@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -54,7 +55,7 @@ class YesNoButtonGroupType extends AbstractType
                         return null;
                     }
 
-                    return (int) $choiceKey;
+                    return (is_string($choiceKey) && !is_numeric($choiceKey)) ? $choiceKey : (int) $choiceKey;
                 },
                 'expanded'    => true,
                 'multiple'    => false,

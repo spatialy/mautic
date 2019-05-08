@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -114,6 +115,12 @@ return [
                     'mautic.api.model.client',
                 ],
             ],
+            'mautic.api.rate_limit_generate_key.subscriber' => [
+              'class'     => 'Mautic\ApiBundle\EventListener\RateLimitGenerateKeySubscriber',
+              'arguments' => [
+                'mautic.helper.core_parameters',
+              ],
+            ],
         ],
         'forms' => [
             'mautic.form.type.apiclients' => [
@@ -178,7 +185,13 @@ return [
 
     'parameters' => [
         'api_enabled'                       => false,
+        'api_enable_basic_auth'             => false,
         'api_oauth2_access_token_lifetime'  => 60,
         'api_oauth2_refresh_token_lifetime' => 14,
+        'api_batch_max_limit'               => 200,
+        'api_rate_limiter_limit'            => 0,
+        'api_rate_limiter_cache'            => [
+          'type'      => 'file_system',
+        ],
     ],
 ];

@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -14,8 +15,8 @@ use Doctrine\ORM\EntityManager;
 use libphonenumber\PhoneNumberFormat;
 use Mautic\CoreBundle\Helper\PhoneNumberHelper;
 use Mautic\LeadBundle\Entity\DoNotContact;
-use Mautic\LeadBundle\Entity\Lead;
 use Mautic\LeadBundle\Model\LeadModel;
+use Mautic\PluginBundle\Helper\IntegrationHelper;
 use Mautic\SmsBundle\Model\SmsModel;
 
 class SmsHelper
@@ -41,9 +42,14 @@ class SmsHelper
     protected $smsModel;
 
     /**
-     * @var int
+     * @var IntegrationHelper
      */
-    protected $smsFrequencyNumber;
+    protected $integrationHelper;
+
+    /**
+     * @var bool
+     */
+    private $disableTrackableUrls;
 
     /**
      * SmsHelper constructor.
@@ -52,15 +58,19 @@ class SmsHelper
      * @param LeadModel         $leadModel
      * @param PhoneNumberHelper $phoneNumberHelper
      * @param SmsModel          $smsModel
-     * @param int               $smsFrequencyNumber
+     * @param IntegrationHelper $integrationHelper
      */
-    public function __construct(EntityManager $em, LeadModel $leadModel, PhoneNumberHelper $phoneNumberHelper, SmsModel $smsModel, $smsFrequencyNumber)
+    public function __construct(EntityManager $em, LeadModel $leadModel, PhoneNumberHelper $phoneNumberHelper, SmsModel $smsModel, IntegrationHelper $integrationHelper)
     {
-        $this->em                 = $em;
-        $this->leadModel          = $leadModel;
-        $this->phoneNumberHelper  = $phoneNumberHelper;
-        $this->smsModel           = $smsModel;
-        $this->smsFrequencyNumber = $smsFrequencyNumber;
+        $this->em                   = $em;
+        $this->leadModel            = $leadModel;
+        $this->phoneNumberHelper    = $phoneNumberHelper;
+        $this->smsModel             = $smsModel;
+        $this->integrationHelper    = $integrationHelper;
+        $integration                = $integrationHelper->getIntegrationObject('Twilio');
+        $settings                   = $integration->getIntegrationSettings()->getFeatureSettings();
+        $this->smsFrequencyNumber   = $settings['frequency_number'];
+        $this->disableTrackableUrls = !empty($settings['disable_trackable_urls']) ? true : false;
     }
 
     public function unsubscribe($number)
@@ -102,32 +112,11 @@ class SmsHelper
         return $this->leadModel->addDncForLead($lead, 'sms', null, DoNotContact::UNSUBSCRIBED);
     }
 
-    public function applyFrequencyRules(Lead $lead)
+    /**
+     * @return bool
+     */
+    public function getDisableTrackableUrls()
     {
-        $frequencyRule = $lead->getFrequencyRules();
-        $statRepo      = $this->smsModel->getStatRepository();
-        $now           = new \DateTime();
-        $channels      = $frequencyRule['channels'];
-
-        $frequencyTime = $frequencyNumber = null;
-
-        if (!empty($frequencyRule) && in_array('sms', $channels, true)) {
-            $frequencyTime   = new \DateInterval('P'.$frequencyRule['frequency_time']);
-            $frequencyNumber = $frequencyRule['frequency_number'];
-        } elseif ($this->smsFrequencyNumber > 0) {
-            $frequencyTime   = new \DateInterval('P'.$frequencyRule['sms_frequency_time']);
-            $frequencyNumber = $this->smsFrequencyNumber;
-        }
-
-        $now->sub($frequencyTime);
-        $sentQuery = $statRepo->getLeadStats($lead->getId(), ['fromDate' => $now]);
-
-        if (!empty($sentQuery) && count($sentQuery) < $frequencyNumber) {
-            return true;
-        } elseif (empty($sentQuery)) {
-            return true;
-        }
-
-        return false;
+        return $this->disableTrackableUrls;
     }
 }

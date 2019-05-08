@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -28,6 +29,23 @@ return [
             'mautic.form.type.cloudstorage.rackspace' => [
                 'class' => 'MauticPlugin\MauticCloudStorageBundle\Form\Type\RackspaceType',
                 'alias' => 'cloudstorage_rackspace',
+            ],
+        ],
+        'integrations' => [
+            'mautic.integration.amazons3' => [
+                'class'     => \MauticPlugin\MauticCloudStorageBundle\Integration\AmazonS3Integration::class,
+                'arguments' => [
+                ],
+            ],
+            'mautic.integration.openstack' => [
+                'class'     => \MauticPlugin\MauticCloudStorageBundle\Integration\OpenStackIntegration::class,
+                'arguments' => [
+                ],
+            ],
+            'mautic.integration.rackspace' => [
+                'class'     => \MauticPlugin\MauticCloudStorageBundle\Integration\RackspaceIntegration::class,
+                'arguments' => [
+                ],
             ],
         ],
     ],

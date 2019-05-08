@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -85,7 +86,7 @@ class CompanySubscriber extends CommonSubscriber
         $company = $event->getCompany();
         $log     = [
             'bundle'    => 'lead',
-            'object'    => 'field',
+            'object'    => 'company',
             'objectId'  => $company->deletedId,
             'action'    => 'delete',
             'details'   => ['name', $company->getPrimaryIdentifier()],

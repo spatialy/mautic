@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -66,8 +67,12 @@ class ColumnSchemaHelper
     /**
      * Set the table to be manipulated.
      *
-     * @param string $table
-     * @param bool   $addPrefix
+     * @param      $table
+     * @param bool $addPrefix
+     *
+     * @return $this
+     *
+     * @throws SchemaException
      */
     public function setName($table, $addPrefix = true)
     {
@@ -79,6 +84,8 @@ class ColumnSchemaHelper
         //use the to schema to get table details so that changes will be calculated
         $this->fromTable = $this->sm->listTableDetails($this->tableName);
         $this->toTable   = clone $this->fromTable;
+
+        return $this;
     }
 
     /**
@@ -148,6 +155,8 @@ class ColumnSchemaHelper
      *                           ['options'] array  (optional) Defining options for column
      * @param bool  $checkExists Check if table exists; pass false if this has already been done
      *
+     * @return $this
+     *
      * @throws SchemaException
      */
     public function addColumn(array $column, $checkExists = true)
@@ -164,18 +173,24 @@ class ColumnSchemaHelper
         $options = (isset($column['options'])) ? $column['options'] : [];
 
         $this->toTable->addColumn($column['name'], $type, $options);
+
+        return $this;
     }
 
     /**
      * Drops a column from table.
      *
      * @param $columnName
+     *
+     * @return $this
      */
     public function dropColumn($columnName)
     {
         if ($this->checkColumnExists($columnName)) {
             $this->toTable->dropColumn($columnName);
         }
+
+        return $this;
     }
 
     /**

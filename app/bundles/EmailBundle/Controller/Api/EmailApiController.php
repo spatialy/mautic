@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -13,7 +14,9 @@ namespace Mautic\EmailBundle\Controller\Api;
 use FOS\RestBundle\Util\Codes;
 use Mautic\ApiBundle\Controller\CommonApiController;
 use Mautic\CoreBundle\Helper\InputHelper;
-use Mautic\EmailBundle\Helper\MailHelper;
+use Mautic\LeadBundle\Controller\LeadAccessTrait;
+use Mautic\LeadBundle\Entity\Lead;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
 
 /**
@@ -21,15 +24,26 @@ use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
  */
 class EmailApiController extends CommonApiController
 {
+    use LeadAccessTrait;
+
     public function initialize(FilterControllerEvent $event)
     {
-        parent::initialize($event);
         $this->model            = $this->getModel('email');
         $this->entityClass      = 'Mautic\EmailBundle\Entity\Email';
         $this->entityNameOne    = 'email';
         $this->entityNameMulti  = 'emails';
-        $this->permissionBase   = 'email:emails';
-        $this->serializerGroups = ['emailDetails', 'categoryList', 'publishDetails', 'assetList'];
+        $this->serializerGroups = ['emailDetails', 'categoryList', 'publishDetails', 'assetList', 'formList', 'leadListList'];
+        $this->dataInputMasks   = [
+            'customHtml'     => 'html',
+            'dynamicContent' => [
+                'content' => 'html',
+                'filters' => [
+                    'content' => 'html',
+                ],
+            ],
+        ];
+
+        parent::initialize($event);
     }
 
     /**
@@ -39,15 +53,6 @@ class EmailApiController extends CommonApiController
      */
     public function getEntitiesAction()
     {
-        if (!$this->security->isGranted('email:emails:viewother')) {
-            $this->listFilters[] =
-                [
-                    'column' => 'e.createdBy',
-                    'expr'   => 'eq',
-                    'value'  => $this->user->getId(),
-                ];
-        }
-
         //get parent level only
         $this->listFilters[] = [
             'column' => 'e.variantParent',
@@ -69,29 +74,30 @@ class EmailApiController extends CommonApiController
     public function sendAction($id)
     {
         $entity = $this->model->getEntity($id);
-        if (null !== $entity) {
-            if (!$this->checkEntityAccess($entity, 'view')) {
-                return $this->accessDenied();
-            }
 
-            $lists = $this->request->request->get('lists', null);
-            $limit = $this->request->request->get('limit', null);
-
-            list($count, $failed) = $this->model->sendEmailToLists($entity, $lists, $limit);
-
-            $view = $this->view(
-                [
-                    'success'          => 1,
-                    'sentCount'        => $count,
-                    'failedRecipients' => $failed,
-                ],
-                Codes::HTTP_OK
-            );
-
-            return $this->handleView($view);
+        if (null === $entity || !$entity->isPublished()) {
+            return $this->notFound();
         }
 
-        return $this->notFound();
+        if (!$this->checkEntityAccess($entity, 'view')) {
+            return $this->accessDenied();
+        }
+
+        $lists = $this->request->request->get('lists', null);
+        $limit = $this->request->request->get('limit', null);
+
+        list($count, $failed) = $this->model->sendEmailToLists($entity, $lists, $limit);
+
+        $view = $this->view(
+            [
+                'success'          => 1,
+                'sentCount'        => $count,
+                'failedRecipients' => $failed,
+            ],
+            Codes::HTTP_OK
+        );
+
+        return $this->handleView($view);
     }
 
     /**
@@ -112,36 +118,46 @@ class EmailApiController extends CommonApiController
                 return $this->accessDenied();
             }
 
-            $leadModel = $this->getModel('lead');
-            $lead      = $leadModel->getEntity($leadId);
-
-            if ($lead == null) {
-                return $this->notFound();
-            } elseif (!$this->security->hasEntityAccess('lead:leads:viewown', 'lead:leads:viewother', $lead->getOwner())) {
-                return $this->accessDenied();
+            /** @var Lead $lead */
+            $lead = $this->checkLeadAccess($leadId, 'edit');
+            if ($lead instanceof Response) {
+                return $lead;
             }
 
-            $post   = $this->request->request->all();
-            $tokens = (!empty($post['tokens'])) ? $post['tokens'] : [];
+            $post     = $this->request->request->all();
+            $tokens   = (!empty($post['tokens'])) ? $post['tokens'] : [];
+            $response = ['success' => false];
 
-            $cleantokens = array_map(function ($v) {
-                return InputHelper::clean($v);
-            }, $tokens);
+            $cleanTokens = [];
 
-            $leadFields = array_merge(['id' => $leadId], $leadModel->flattenFields($lead->getFields()));
+            foreach ($tokens as $token => $value) {
+                $value = InputHelper::clean($value);
+                if (!preg_match('/^{.*?}$/', $token)) {
+                    $token = '{'.$token.'}';
+                }
 
-            if (MailHelper::applyFrequencyRules($lead)) {
-                $this->model->sendEmail(
-                    $entity,
-                    $leadFields,
-                    [
-                        'source' => ['api', 0],
-                        'tokens' => $cleantokens,
-                    ]
-                );
+                $cleanTokens[$token] = $value;
             }
 
-            $view = $this->view(['success' => 1], Codes::HTTP_OK);
+            $leadFields = array_merge(['id' => $leadId], $lead->getProfileFields());
+
+            $result = $this->model->sendEmail(
+                $entity,
+                $leadFields,
+                [
+                    'source'        => ['api', 0],
+                    'tokens'        => $cleanTokens,
+                    'return_errors' => true,
+                ]
+            );
+
+            if (is_bool($result)) {
+                $response['success'] = $result;
+            } else {
+                $response['failed'] = $result;
+            }
+
+            $view = $this->view($response, Codes::HTTP_OK);
 
             return $this->handleView($view);
         }

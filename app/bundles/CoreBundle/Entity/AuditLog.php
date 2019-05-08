@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -78,7 +79,8 @@ class AuditLog
         $builder->setTable('audit_log')
             ->setCustomRepositoryClass('Mautic\CoreBundle\Entity\AuditLogRepository')
             ->addIndex(['object', 'object_id'], 'object_search')
-            ->addIndex(['bundle', 'object', 'action', 'object_id'], 'timeline_search');
+            ->addIndex(['bundle', 'object', 'action', 'object_id'], 'timeline_search')
+            ->addIndex(['date_added'], 'date_added_index');
 
         $builder->addId();
 
@@ -227,11 +229,11 @@ class AuditLog
     /**
      * Set details.
      *
-     * @param string $details
+     * @param array $details
      *
      * @return AuditLog
      */
-    public function setDetails($details)
+    public function setDetails(array $details)
     {
         $this->details = $details;
 
@@ -241,7 +243,7 @@ class AuditLog
     /**
      * Get details.
      *
-     * @return string
+     * @return array
      */
     public function getDetails()
     {

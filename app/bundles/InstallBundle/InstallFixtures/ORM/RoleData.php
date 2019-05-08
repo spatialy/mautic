@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -40,6 +41,10 @@ class RoleData extends AbstractFixture implements OrderedFixtureInterface, Conta
      */
     public function load(ObjectManager $manager)
     {
+        if ($this->hasReference('admin-role')) {
+            return;
+        }
+
         $translator = $this->container->get('translator');
         $role       = new Role();
         $role->setName($translator->trans('mautic.user.role.admin.name', [], 'fixtures'));

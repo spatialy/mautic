@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -31,7 +32,9 @@ class CampaignEventAddRemoveLeadType extends AbstractType
             'attr'       => [
                 'class' => 'form-control',
             ],
-            'required' => false,
+            'required'         => false,
+            'include_this'     => $options['include_this'],
+            'this_translation' => 'mautic.campaign.form.thiscampaign_restart',
         ]);
 
         $builder->add('removeFrom', 'campaign_list', [

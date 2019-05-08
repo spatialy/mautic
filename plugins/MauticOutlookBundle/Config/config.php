@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -13,4 +14,13 @@ return [
     'description' => 'Enables integrations with Outlook for email tracking',
     'version'     => '1.0',
     'author'      => 'Mautic',
+    'services'    => [
+        'integrations' => [
+            'mautic.integration.outlook' => [
+                'class'     => \MauticPlugin\MauticOutlookBundle\Integration\OutlookIntegration::class,
+                'arguments' => [
+                ],
+            ],
+        ],
+    ],
 ];

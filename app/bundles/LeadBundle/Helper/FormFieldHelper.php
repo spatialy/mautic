@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -95,9 +96,6 @@ class FormFieldHelper extends AbstractFormFieldHelper
         'region' => [
             'properties' => [],
         ],
-        'timezone' => [
-            'properties' => [],
-        ],
         'locale' => [
             'properties' => [],
         ],
@@ -124,7 +122,7 @@ class FormFieldHelper extends AbstractFormFieldHelper
      */
     public static function getListTypes()
     {
-        return ['select', 'boolean', 'lookup', 'country', 'region', 'timezone', 'locale'];
+        return ['select', 'multiselect', 'boolean', 'lookup', 'country', 'region', 'timezone', 'locale'];
     }
 
     /**
@@ -211,7 +209,7 @@ class FormFieldHelper extends AbstractFormFieldHelper
                     $name   = $parts[0];
                 }
 
-                $timezones[$region][str_replace('_', ' ', $name)] = $timezone;
+                $timezones[$region][$timezone] = str_replace('_', ' ', $name);
             }
         }
 
@@ -226,5 +224,22 @@ class FormFieldHelper extends AbstractFormFieldHelper
     public static function getLocaleChoices()
     {
         return Intl::getLocaleBundle()->getLocaleNames();
+    }
+
+    /**
+     * Get date field choices.
+     *
+     * @return array
+     */
+    public function getDateChoices()
+    {
+        $options = [
+            'anniversary' => $this->translator->trans('mautic.campaign.event.timed.choice.anniversary'),
+            '+P0D'        => $this->translator->trans('mautic.campaign.event.timed.choice.today'),
+            '-P1D'        => $this->translator->trans('mautic.campaign.event.timed.choice.yesterday'),
+            '+P1D'        => $this->translator->trans('mautic.campaign.event.timed.choice.tomorrow'),
+        ];
+
+        return $options;
     }
 }

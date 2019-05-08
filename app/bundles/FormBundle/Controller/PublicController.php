@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -24,6 +25,11 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class PublicController extends CommonFormController
 {
+    /**
+     * @var array
+     */
+    private $tokens = [];
+
     /**
      * @return \Symfony\Component\HttpFoundation\RedirectResponse|Response
      */
@@ -323,7 +329,8 @@ class PublicController extends CommonFormController
      */
     public function previewAction($id = 0)
     {
-        $objectId          = (empty($id)) ? InputHelper::int($this->request->get('id')) : $id;
+        /** @var FormModel $model */
+        $objectId          = (empty($id)) ? (int) $this->request->get('id') : $id;
         $css               = InputHelper::string($this->request->get('css'));
         $model             = $this->getModel('form.form');
         $form              = $model->getEntity($objectId);
@@ -331,7 +338,7 @@ class PublicController extends CommonFormController
         $template          = null;
 
         if ($form === null || !$form->isPublished()) {
-            $this->notFound();
+            return $this->notFound();
         } else {
             $html = $model->getContent($form);
 
@@ -341,7 +348,12 @@ class PublicController extends CommonFormController
                 'content'     => $html,
                 'stylesheets' => $customStylesheets,
                 'name'        => $form->getName(),
+                'metaRobots'  => '<meta name="robots" content="index">',
             ];
+
+            if ($form->getNoIndex()) {
+                $viewParams['metaRobots'] = '<meta name="robots" content="noindex">';
+            }
 
             $template = $form->getTemplate();
             if (!empty($template)) {
@@ -375,6 +387,9 @@ class PublicController extends CommonFormController
             if (!empty($analytics)) {
                 $assetsHelper->addCustomDeclaration($analytics);
             }
+            if ($form->getNoIndex()) {
+                $assetsHelper->addCustomDeclaration('<meta name="robots" content="noindex">');
+            }
 
             return $this->render($logicalName, $viewParams);
         }
@@ -389,7 +404,10 @@ class PublicController extends CommonFormController
      */
     public function generateAction()
     {
-        $formId = InputHelper::int($this->request->get('id'));
+        // Don't store a visitor with this request
+        defined('MAUTIC_NON_TRACKABLE_REQUEST') || define('MAUTIC_NON_TRACKABLE_REQUEST', 1);
+
+        $formId = (int) $this->request->get('id');
 
         $model = $this->getModel('form.form');
         $form  = $model->getEntity($formId);
@@ -415,7 +433,7 @@ class PublicController extends CommonFormController
      */
     public function embedAction()
     {
-        $formId = InputHelper::int($this->request->get('id'));
+        $formId = (int) $this->request->get('id');
         /** @var FormModel $model */
         $model = $this->getModel('form');
         $form  = $model->getEntity($formId);
@@ -445,14 +463,18 @@ class PublicController extends CommonFormController
      */
     private function replacePostSubmitTokens($string, SubmissionEvent $submissionEvent)
     {
-        static $tokens = [];
-        if (empty($tokens)) {
-            $tokens = array_merge(
-                $submissionEvent->getTokens(),
-                TokenHelper::findLeadTokens($string, $submissionEvent->getLead()->getProfileFields())
-            );
+        if (empty($this->tokens)) {
+            if ($lead = $submissionEvent->getLead()) {
+                $this->tokens = array_merge(
+                    $submissionEvent->getTokens(),
+                    TokenHelper::findLeadTokens(
+                        $string,
+                        $lead->getProfileFields()
+                    )
+                );
+            }
         }
 
-        return str_replace(array_keys($tokens), array_values($tokens), $string);
+        return str_replace(array_keys($this->tokens), array_values($this->tokens), $string);
     }
 }

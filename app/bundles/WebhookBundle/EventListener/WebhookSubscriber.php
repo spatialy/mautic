@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -42,6 +43,7 @@ class WebhookSubscriber extends CommonSubscriber
         $this->ipLookupHelper = $ipLookupHelper;
         $this->auditLogModel  = $auditLogModel;
     }
+
     /**
      * {@inheritdoc}
      */

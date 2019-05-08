@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2016 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -45,7 +46,7 @@ class Version20160426000000 extends AbstractMauticMigration
     public function up(Schema $schema)
     {
         $sql = <<<SQL
-CREATE TABLE `{$this->prefix}lead_donotcontact` (
+CREATE TABLE IF NOT EXISTS `{$this->prefix}lead_donotcontact` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `lead_id` int(11) DEFAULT NULL,
   `channel` varchar(255) COLLATE utf8_unicode_ci NOT NULL,

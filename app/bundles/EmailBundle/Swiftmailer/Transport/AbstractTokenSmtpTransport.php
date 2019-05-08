@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2015 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -15,17 +16,12 @@ use Mautic\EmailBundle\Swiftmailer\Message\MauticMessage;
 /**
  * Class AbstractBatchTransport.
  */
-abstract class AbstractTokenSmtpTransport extends \Swift_SmtpTransport implements InterfaceTokenTransport
+abstract class AbstractTokenSmtpTransport extends \Swift_SmtpTransport implements TokenTransportInterface
 {
     /**
      * @var \Swift_Mime_Message
      */
     protected $message;
-
-    /**
-     * @var MauticFactory
-     */
-    protected $factory;
 
     /**
      * Do whatever is necessary to $this->message in order to deliver a batched payload. i.e. add custom headers, etc.
@@ -67,13 +63,5 @@ abstract class AbstractTokenSmtpTransport extends \Swift_SmtpTransport implement
     public function getAttachments()
     {
         return ($this->message instanceof MauticMessage) ? $this->message->getAttachments() : [];
-    }
-
-    /**
-     * @param MauticFactory $factory
-     */
-    public function setMauticFactory(MauticFactory $factory)
-    {
-        $this->factory = $factory;
     }
 }

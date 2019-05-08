@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -107,7 +108,6 @@ class DashboardSubscriber extends MainDashboardSubscriber
                     }
                 }
             }
-
             $event->setTemplate('MauticReportBundle:SubscribedEvents\Dashboard:widget.html.php');
             $event->stopPropagation();
         }

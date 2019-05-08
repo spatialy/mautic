@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2015 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -13,7 +14,7 @@ namespace Mautic\EmailBundle\Swiftmailer\Transport;
 /**
  * Class AbstractTokenHttpTransport.
  */
-abstract class AbstractTokenHttpTransport extends AbstractTokenArrayTransport implements \Swift_Transport, InterfaceTokenTransport
+abstract class AbstractTokenHttpTransport extends AbstractTokenArrayTransport implements \Swift_Transport, TokenTransportInterface
 {
     /**
      * @var

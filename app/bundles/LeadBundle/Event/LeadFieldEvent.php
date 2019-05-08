@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
@@ -31,7 +32,7 @@ class LeadFieldEvent extends CommonEvent
     /**
      * Returns the Field entity.
      *
-     * @return Field
+     * @return LeadField
      */
     public function getField()
     {
@@ -39,9 +40,9 @@ class LeadFieldEvent extends CommonEvent
     }
 
     /**
-     * Sets the Field entity.
+     * Sets the LeadField entity.
      *
-     * @param Field $field
+     * @param LeadField $field
      */
     public function setField(LeadField $field)
     {
