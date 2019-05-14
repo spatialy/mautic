@@ -18,7 +18,7 @@ use Symfony\Component\ClassLoader\ApcClassLoader;
 
 $loader = require_once __DIR__.'/app/autoload.php';
 
-/**
+/*
  * Use APC for autoloading to improve performance. Change 'sf2' to a unique prefix
  * in order to prevent cache key conflicts with other applications also using APC.
  */
@@ -26,7 +26,12 @@ $loader = require_once __DIR__.'/app/autoload.php';
 //$loader->unregister();
 //$apcLoader->register(true);
 
+\Mautic\CoreBundle\ErrorHandler\ErrorHandler::register('prod');
+
 $kernel = new AppKernel('prod', false);
-$kernel->loadClassCache();
+
+if (version_compare(PHP_VERSION, '7.0.0', '<')) {
+    $kernel->loadClassCache();
+}
 
 Stack\run((new MiddlewareBuilder('prod'))->resolve($kernel));

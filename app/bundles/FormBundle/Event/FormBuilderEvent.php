@@ -13,7 +13,7 @@ namespace Mautic\FormBundle\Event;
 
 use Mautic\CoreBundle\Event\ComponentValidationTrait;
 use Symfony\Component\EventDispatcher\Event;
-use Symfony\Component\Process\Exception\InvalidArgumentException;
+use Symfony\Component\Form\Form;
 
 /**
  * Class FormBuilderEvent.
@@ -70,12 +70,12 @@ class FormBuilderEvent extends Event
      *                       'callback'           => (deprecated) callback function that will be passed the results upon a form submit; use eventName instead
      *                       ]
      *
-     * @throws InvalidArgumentException
+     * @throws \InvalidArgumentException
      */
     public function addSubmitAction($key, array $action)
     {
         if (array_key_exists($key, $this->actions)) {
-            throw new InvalidArgumentException("The key, '$key' is already used by another action. Please use a different key.");
+            throw new \InvalidArgumentException("The key, '$key' is already used by another action. Please use a different key.");
         }
 
         //check for required keys and that given functions are callable
@@ -154,12 +154,12 @@ class FormBuilderEvent extends Event
      *                      ]
      *                      ]
      *
-     * @throws InvalidArgumentException
+     * @throws \InvalidArgumentException
      */
     public function addFormField($key, array $field)
     {
         if (array_key_exists($key, $this->fields)) {
-            throw new InvalidArgumentException("The key, '$key' is already used by another field. Please use a different key.");
+            throw new \InvalidArgumentException("The key, '$key' is already used by another field. Please use a different key.");
         }
 
         $callbacks = ['valueConstraints'];
@@ -203,13 +203,35 @@ class FormBuilderEvent extends Event
     public function addValidator($key, array $validator)
     {
         if (array_key_exists($key, $this->fields)) {
-            throw new InvalidArgumentException("The key, '$key' is already used by another validator. Please use a different key.");
+            throw new \InvalidArgumentException("The key, '$key' is already used by another validator. Please use a different key.");
         }
 
         //check for required keys and that given functions are callable
         $this->verifyComponent(['eventName'], $validator);
 
         $this->validators[$key] = $validator;
+    }
+
+    /**
+     * @param Form $form
+     */
+    public function addValidatorsToBuilder(Form $form)
+    {
+        if (!empty($this->validators)) {
+            $validationData = (isset($form->getData()['validation'])) ? $form->getData()['validation'] : [];
+            foreach ($this->validators as $validator) {
+                if (isset($validator['formType']) && isset($validator['fieldType']) && $validator['fieldType'] == $form->getData()['type']) {
+                    $form->add(
+                        'validation',
+                        $validator['formType'],
+                        [
+                            'label' => false,
+                            'data'  => $validationData,
+                        ]
+                    );
+                }
+            }
+        }
     }
 
     /**

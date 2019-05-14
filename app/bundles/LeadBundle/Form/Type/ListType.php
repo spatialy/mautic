@@ -11,16 +11,28 @@
 
 namespace Mautic\LeadBundle\Form\Type;
 
-use Mautic\CoreBundle\Factory\MauticFactory;
+use DeviceDetector\Parser\Device\DeviceParserAbstract as DeviceParser;
+use DeviceDetector\Parser\OperatingSystem;
+use Mautic\AssetBundle\Model\AssetModel;
+use Mautic\CampaignBundle\Model\CampaignModel;
+use Mautic\CategoryBundle\Model\CategoryModel;
 use Mautic\CoreBundle\Form\EventListener\CleanFormSubscriber;
 use Mautic\CoreBundle\Form\EventListener\FormExitSubscriber;
+use Mautic\CoreBundle\Form\Validator\Constraints\CircularDependency;
+use Mautic\CoreBundle\Helper\UserHelper;
+use Mautic\CoreBundle\Security\Permissions\CorePermissions;
+use Mautic\EmailBundle\Model\EmailModel;
 use Mautic\LeadBundle\Form\DataTransformer\FieldFilterTransformer;
 use Mautic\LeadBundle\Helper\FormFieldHelper;
+use Mautic\LeadBundle\Model\LeadModel;
+use Mautic\LeadBundle\Model\ListModel;
+use Mautic\StageBundle\Model\StageModel;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\Translation\TranslatorInterface;
 
 /**
  * Class ListType.
@@ -28,25 +40,40 @@ use Symfony\Component\OptionsResolver\OptionsResolverInterface;
 class ListType extends AbstractType
 {
     private $translator;
-    private $fieldChoices    = [];
-    private $timezoneChoices = [];
-    private $countryChoices  = [];
-    private $regionChoices   = [];
-    private $listChoices     = [];
-    private $emailChoices    = [];
-    private $tagChoices      = [];
-    private $stageChoices    = [];
-    private $localeChoices   = [];
+    private $fieldChoices        = [];
+    private $timezoneChoices     = [];
+    private $countryChoices      = [];
+    private $regionChoices       = [];
+    private $listChoices         = [];
+    private $campaignChoices     = [];
+    private $emailChoices        = [];
+    private $deviceTypesChoices  = [];
+    private $deviceBrandsChoices = [];
+    private $deviceOsChoices     = [];
+    private $tagChoices          = [];
+    private $stageChoices        = [];
+    private $assetChoices        = [];
+    private $localeChoices       = [];
+    private $categoriesChoices   = [];
 
     /**
-     * @param MauticFactory $factory
+     * ListType constructor.
+     *
+     * @param TranslatorInterface $translator
+     * @param ListModel           $listModel
+     * @param EmailModel          $emailModel
+     * @param CorePermissions     $security
+     * @param LeadModel           $leadModel
+     * @param StageModel          $stageModel
+     * @param CategoryModel       $categoryModel
+     * @param UserHelper          $userHelper
+     * @param CampaignModel       $campaignModel
+     * @param AssetModel          $assetModel
      */
-    public function __construct(MauticFactory $factory)
+    public function __construct(TranslatorInterface $translator, ListModel $listModel, EmailModel $emailModel, CorePermissions $security, LeadModel $leadModel, StageModel $stageModel, CategoryModel $categoryModel, UserHelper $userHelper, CampaignModel $campaignModel, AssetModel $assetModel)
     {
-        $this->translator = $factory->getTranslator();
+        $this->translator = $translator;
 
-        /** @var \Mautic\LeadBundle\Model\ListModel $listModel */
-        $listModel          = $factory->getModel('lead.list');
         $this->fieldChoices = $listModel->getChoiceFields();
 
         // Locales
@@ -61,27 +88,49 @@ class ListType extends AbstractType
             $this->listChoices[$list['id']] = $list['name'];
         }
 
-        // Emails
-        /** @var \Mautic\EmailBundle\Model\EmailModel $emailModel */
-        $emailModel = $factory->getModel('email');
-        $viewOther  = $factory->getSecurity()->isGranted('email:emails:viewother');
-        $emails     = $emailModel->getRepository()->getEmailList('', 0, 0, $viewOther, true);
+        // Campaigns
+        $campaigns = $campaignModel->getPublishedCampaigns(true);
+        foreach ($campaigns as $campaign) {
+            $this->campaignChoices[$campaign['id']] = $campaign['name'];
+        }
+
+        $viewOther   = $security->isGranted('email:emails:viewother');
+        $currentUser = $userHelper->getUser();
+        $emailRepo   = $emailModel->getRepository();
+
+        $emailRepo->setCurrentUser($currentUser);
+
+        $emails = $emailRepo->getEmailList('', 0, 0, $viewOther, true);
+
         foreach ($emails as $email) {
             $this->emailChoices[$email['language']][$email['id']] = $email['name'];
         }
         ksort($this->emailChoices);
 
-        // Tags
-        $leadModel = $factory->getModel('lead');
-        $tags      = $leadModel->getTagList();
+        $assets = $assetModel->getLookupResults('asset');
+        foreach ($assets as $asset) {
+            $this->assetChoices[$asset['language']][$asset['id']] = $asset['title'];
+        }
+        ksort($this->assetChoices);
+
+        $tags = $leadModel->getTagList();
         foreach ($tags as $tag) {
             $this->tagChoices[$tag['value']] = $tag['label'];
         }
 
-        $stages = $factory->getModel('stage')->getRepository()->getSimpleList();
+        $stages = $stageModel->getRepository()->getSimpleList();
         foreach ($stages as $stage) {
             $this->stageChoices[$stage['value']] = $stage['label'];
         }
+
+        $categories = $categoryModel->getLookupResults('global');
+
+        foreach ($categories as $category) {
+            $this->categoriesChoices[$category['id']] = $category['title'];
+        }
+        $this->deviceTypesChoices  = array_combine((DeviceParser::getAvailableDeviceTypeNames()), (DeviceParser::getAvailableDeviceTypeNames()));
+        $this->deviceBrandsChoices = DeviceParser::$deviceBrands;
+        $this->deviceOsChoices     = array_combine((array_keys(OperatingSystem::getAvailableOperatingSystemFamilies())), array_keys(OperatingSystem::getAvailableOperatingSystemFamilies()));
     }
 
     /**
@@ -133,13 +182,27 @@ class ListType extends AbstractType
             'isGlobal',
             'yesno_button_group',
             [
-                'label' => 'mautic.lead.list.form.isglobal',
+                'label'      => 'mautic.lead.list.form.isglobal',
+                'attr'       => [
+                    'tooltip' => 'mautic.lead.list.form.isglobal.tooltip',
+                ],
+            ]
+        );
+
+        $builder->add(
+            'isPreferenceCenter',
+            'yesno_button_group',
+            [
+                'label'      => 'mautic.lead.list.form.isPreferenceCenter',
+                'attr'       => [
+                    'tooltip' => 'mautic.lead.list.form.isPreferenceCenter.tooltip',
+                ],
             ]
         );
 
         $builder->add('isPublished', 'yesno_button_group');
 
-        $filterModalTransformer = new FieldFilterTransformer($this->translator);
+        $filterModalTransformer = new FieldFilterTransformer($this->translator, ['object'=>'lead']);
         $builder->add(
             $builder->create(
                 'filters',
@@ -147,22 +210,33 @@ class ListType extends AbstractType
                 [
                     'type'    => 'leadlist_filter',
                     'options' => [
-                        'label'     => false,
-                        'timezones' => $this->timezoneChoices,
-                        'countries' => $this->countryChoices,
-                        'regions'   => $this->regionChoices,
-                        'fields'    => $this->fieldChoices,
-                        'lists'     => $this->listChoices,
-                        'emails'    => $this->emailChoices,
-                        'tags'      => $this->tagChoices,
-                        'stage'     => $this->stageChoices,
-                        'locales'   => $this->localeChoices,
+                        'label'          => false,
+                        'timezones'      => $this->timezoneChoices,
+                        'countries'      => $this->countryChoices,
+                        'regions'        => $this->regionChoices,
+                        'fields'         => $this->fieldChoices,
+                        'lists'          => $this->listChoices,
+                        'campaign'       => $this->campaignChoices,
+                        'emails'         => $this->emailChoices,
+                        'deviceTypes'    => $this->deviceTypesChoices,
+                        'deviceBrands'   => $this->deviceBrandsChoices,
+                        'deviceOs'       => $this->deviceOsChoices,
+                        'assets'         => $this->assetChoices,
+                        'tags'           => $this->tagChoices,
+                        'stage'          => $this->stageChoices,
+                        'locales'        => $this->localeChoices,
+                        'globalcategory' => $this->categoriesChoices,
                     ],
                     'error_bubbling' => false,
                     'mapped'         => true,
                     'allow_add'      => true,
                     'allow_delete'   => true,
                     'label'          => false,
+                    'constraints'    => [
+                        new CircularDependency([
+                            'message' => 'mautic.core.segment.circular_dependency_exists',
+                        ]),
+                    ],
                 ]
             )->addModelTransformer($filterModalTransformer)
         );
@@ -191,15 +265,21 @@ class ListType extends AbstractType
      */
     public function buildView(FormView $view, FormInterface $form, array $options)
     {
-        $view->vars['fields']    = $this->fieldChoices;
-        $view->vars['countries'] = $this->countryChoices;
-        $view->vars['regions']   = $this->regionChoices;
-        $view->vars['timezones'] = $this->timezoneChoices;
-        $view->vars['lists']     = $this->listChoices;
-        $view->vars['emails']    = $this->emailChoices;
-        $view->vars['tags']      = $this->tagChoices;
-        $view->vars['stage']     = $this->stageChoices;
-        $view->vars['locales']   = $this->localeChoices;
+        $view->vars['fields']         = $this->fieldChoices;
+        $view->vars['countries']      = $this->countryChoices;
+        $view->vars['regions']        = $this->regionChoices;
+        $view->vars['timezones']      = $this->timezoneChoices;
+        $view->vars['lists']          = $this->listChoices;
+        $view->vars['campaign']       = $this->campaignChoices;
+        $view->vars['emails']         = $this->emailChoices;
+        $view->vars['deviceTypes']    = $this->deviceTypesChoices;
+        $view->vars['deviceBrands']   = $this->deviceBrandsChoices;
+        $view->vars['deviceOs']       = $this->deviceOsChoices;
+        $view->vars['assets']         = $this->assetChoices;
+        $view->vars['tags']           = $this->tagChoices;
+        $view->vars['stage']          = $this->stageChoices;
+        $view->vars['locales']        = $this->localeChoices;
+        $view->vars['globalcategory'] = $this->categoriesChoices;
     }
 
     /**

@@ -12,8 +12,8 @@
 namespace Mautic\EmailBundle\EventListener;
 
 use Doctrine\ORM\EntityManager;
-use Mautic\CoreBundle\CoreEvents;
-use Mautic\CoreBundle\Event\ChannelBroadcastEvent;
+use Mautic\ChannelBundle\ChannelEvents;
+use Mautic\ChannelBundle\Event\ChannelBroadcastEvent;
 use Mautic\EmailBundle\Entity\Email;
 use Mautic\EmailBundle\Model\EmailModel;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -42,7 +42,9 @@ class BroadcastSubscriber implements EventSubscriberInterface
     /**
      * BroadcastSubscriber constructor.
      *
-     * @param EmailModel $emailModel
+     * @param EmailModel          $emailModel
+     * @param EntityManager       $em
+     * @param TranslatorInterface $translator
      */
     public function __construct(EmailModel $emailModel, EntityManager $em, TranslatorInterface $translator)
     {
@@ -57,7 +59,7 @@ class BroadcastSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents()
     {
         return [
-            CoreEvents::CHANNEL_BROADCAST => ['onBroadcast', 0],
+            ChannelEvents::CHANNEL_BROADCAST => ['onBroadcast', 0],
         ];
     }
 
@@ -71,17 +73,27 @@ class BroadcastSubscriber implements EventSubscriberInterface
         }
 
         // Get list of published broadcasts or broadcast if there is only a single ID
-        $id     = $event->getId();
-        $emails = $this->model->getRepository()->getPublishedBroadcasts($id);
+        $emails = $this->model->getRepository()->getPublishedBroadcasts($event->getId());
 
-        $output = $event->getOutput();
-
-        /** @var Email $email */
         while (($email = $emails->next()) !== false) {
-            list($sentCount, $failedCount, $ignore) = $this->model->sendEmailToLists($email[0], null, 100, true, $output);
+            $emailEntity                                            = $email[0];
+            list($sentCount, $failedCount, $failedRecipientsByList) = $this->model->sendEmailToLists(
+                $emailEntity,
+                null,
+                $event->getLimit(),
+                $event->getBatch(),
+                $event->getOutput(),
+                $event->getMinContactIdFilter(),
+                $event->getMaxContactIdFilter()
+            );
 
-            $event->setResults($this->translator->trans('mautic.email.email').': '.$email[0]->getName(), $sentCount, $failedCount);
-            $this->em->detach($email[0]);
+            $event->setResults(
+                $this->translator->trans('mautic.email.email').': '.$emailEntity->getName(),
+                $sentCount,
+                $failedCount,
+                $failedRecipientsByList
+            );
+            $this->em->detach($emailEntity);
         }
     }
 }

@@ -28,6 +28,17 @@ final class NotificationEvents
     const TOKEN_REPLACEMENT = 'mautic.notification_token_replacement';
 
     /**
+     * The mautic.notification_form_action_send event is thrown when a notification is sent
+     * as part of a form action.
+     *
+     * The event listener receives a
+     * Mautic\NotificationBundle\Event\SendingNotificationEvent instance.
+     *
+     * @var string
+     */
+    const NOTIFICATION_ON_FORM_ACTION_SEND = 'mautic.notification_form_action_send';
+
+    /**
      * The mautic.notification_on_send event is thrown when a notification is sent.
      *
      * The event listener receives a
@@ -86,4 +97,14 @@ final class NotificationEvents
      * @var string
      */
     const ON_CAMPAIGN_TRIGGER_ACTION = 'mautic.notification.on_campaign_trigger_action';
+
+    /**
+     * The mautic.notification.on_campaign_trigger_condition event is fired when the campaign condition triggers.
+     *
+     * The event listener receives a
+     * Mautic\CampaignBundle\Event\CampaignExecutionEvent
+     *
+     * @var string
+     */
+    const ON_CAMPAIGN_TRIGGER_CONDITION = 'mautic.notification.on_campaign_trigger_notification';
 }

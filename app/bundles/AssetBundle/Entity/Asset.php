@@ -158,6 +158,11 @@ class Asset extends FormEntity
     private $downloadUrl;
 
     /**
+     * @var bool
+     */
+    private $disallow = false;
+
+    /**
      * @param ORM\ClassMetadata $metadata
      */
     public static function loadMetadata(ORM\ClassMetadata $metadata)
@@ -220,6 +225,10 @@ class Asset extends FormEntity
         $builder->createField('size', 'integer')
             ->nullable()
             ->build();
+
+        $builder->createField('disallow', 'boolean')
+            ->nullable()
+            ->build();
     }
 
     /**
@@ -251,6 +260,8 @@ class Asset extends FormEntity
                     'mime',
                     'size',
                     'downloadUrl',
+                    'storageLocation',
+                    'disallow',
                 ]
             )
             ->build();
@@ -301,7 +312,7 @@ class Asset extends FormEntity
     public function getFile()
     {
         // if file is not set, try to find it at temp folder
-        if ($this->getStorageLocation() == 'local' && empty($this->file)) {
+        if ($this->isLocal() && empty($this->file)) {
             $tempFile = $this->loadFile(true);
 
             if ($tempFile) {
@@ -647,18 +658,6 @@ class Asset extends FormEntity
     }
 
     /**
-     * @param $prop
-     * @param $val
-     */
-    protected function isChanged($prop, $val)
-    {
-        $getter  = 'get'.ucfirst($prop);
-        $current = $this->$getter();
-
-        parent::isChanged($prop, $val);
-    }
-
-    /**
      * Constructor.
      */
     public function __construct()
@@ -689,10 +688,21 @@ class Asset extends FormEntity
         return $this->uniqueDownloadCount;
     }
 
+    public function setFileNameFromRemote()
+    {
+        $fileName = basename($this->getRemotePath());
+
+        $this->setOriginalFileName($fileName);
+
+        // set the asset title as original file name if title is missing
+        if (null === $this->getTitle()) {
+            $this->setTitle($fileName);
+        }
+    }
+
     public function preUpload()
     {
         if (null !== $this->getFile()) {
-
             // set the asset title as original file name if title is missing
             if (null === $this->getTitle()) {
                 $this->setTitle($this->file->getClientOriginalName());
@@ -706,15 +716,8 @@ class Asset extends FormEntity
                 $extension = pathinfo($this->originalFileName, PATHINFO_EXTENSION);
             }
             $this->path = $filename.'.'.$extension;
-        } elseif ($this->getStorageLocation() == 'remote' && $this->getRemotePath() !== null) {
-            $fileName = basename($this->getRemotePath());
-
-            $this->setOriginalFileName($fileName);
-
-            // set the asset title as original file name if title is missing
-            if (null === $this->getTitle()) {
-                $this->setTitle($fileName);
-            }
+        } elseif ($this->isRemote() && $this->getRemotePath() !== null) {
+            $this->setFileNameFromRemote();
         }
     }
 
@@ -722,16 +725,9 @@ class Asset extends FormEntity
     {
         // the file property can be empty if the field is not required
         if (null === $this->getFile()) {
-
             // check for the remote and set type data
-            if ($this->getStorageLocation() == 'remote') {
-                // get some basic information about the file type
-                $fileInfo = $this->getFileInfo();
-
-                // set the mime and extension column values
-                $this->setExtension($fileInfo['extension']);
-                $this->setMime($fileInfo['mime']);
-                $this->setSize($fileInfo['size']);
+            if ($this->isRemote()) {
+                $this->setFileInfoFromFile();
             }
 
             return;
@@ -742,13 +738,7 @@ class Asset extends FormEntity
         $this->getFile()->move($this->getUploadDir(), $this->path);
         $filePath = $this->getUploadDir().'/'.$this->temp;
 
-        // get some basic information about the file type
-        $fileInfo = $this->getFileInfo();
-
-        // set the mime and extension column values
-        $this->setExtension($fileInfo['extension']);
-        $this->setMime($fileInfo['mime']);
-        $this->setSize($fileInfo['size']);
+        $this->setFileInfoFromFile();
 
         // check if we have an old asset
         if (isset($this->temp) && file_exists($filePath)) {
@@ -764,6 +754,24 @@ class Asset extends FormEntity
 
         // clean up the file property as you won't need it anymore
         $this->file = null;
+    }
+
+    /**
+     * Remove a file.
+     */
+    public function setFileInfoFromFile()
+    {
+        // get some basic information about the file type
+        $fileInfo = $this->getFileInfo();
+
+        if (!is_array($fileInfo)) {
+            return;
+        }
+
+        // set the mime and extension column values
+        $this->setExtension($fileInfo['extension']);
+        $this->setMime($fileInfo['mime']);
+        $this->setSize($fileInfo['size']);
     }
 
     /**
@@ -888,7 +896,7 @@ class Asset extends FormEntity
             return $this->extension;
         }
 
-        if ($this->getStorageLocation() == 'remote') {
+        if ($this->isRemote()) {
             return pathinfo(parse_url($this->getRemotePath(), PHP_URL_PATH), PATHINFO_EXTENSION);
         }
 
@@ -908,7 +916,7 @@ class Asset extends FormEntity
     {
         $fileInfo = [];
 
-        if ($this->getStorageLocation() == 'remote') {
+        if ($this->isRemote()) {
             $ch = curl_init($this->getRemotePath());
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -944,7 +952,7 @@ class Asset extends FormEntity
      */
     public function getFileMimeType()
     {
-        if ($this->getStorageLocation() == 'remote') {
+        if ($this->isRemote()) {
             $ch = curl_init($this->getRemotePath());
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -1139,7 +1147,7 @@ class Asset extends FormEntity
      */
     public function getFilePath()
     {
-        return $this->getStorageLocation() == 'remote' ? $this->getRemotePath() : $this->getAbsolutePath();
+        return $this->isRemote() ? $this->getRemotePath() : $this->getAbsolutePath();
     }
 
     /**
@@ -1175,11 +1183,12 @@ class Asset extends FormEntity
      */
     public static function validateFile($object, ExecutionContextInterface $context)
     {
-        if ($object->getStorageLocation() == 'local') {
+        if ($object->isLocal()) {
             $tempName = $object->getTempName();
+            $path     = $object->getPath();
 
             // If the object is stored locally, we should have file data
-            if ($object->isNew() && $tempName === null) {
+            if ($object->isNew() && $tempName === null && $path === null) {
                 $context->buildViolation('mautic.asset.asset.error.missing.file')
                     ->atPath('tempName')
                     ->setTranslationDomain('validators')
@@ -1195,7 +1204,7 @@ class Asset extends FormEntity
 
             // Unset any remote file data
             $object->setRemotePath(null);
-        } elseif ($object->getStorageLocation() == 'remote') {
+        } elseif ($object->isRemote()) {
             // If the object is stored remotely, we should have a remote path
             if ($object->getRemotePath() === null) {
                 $context->buildViolation('mautic.asset.asset.error.missing.remote.path')
@@ -1268,7 +1277,7 @@ class Asset extends FormEntity
     {
         if (empty($this->size) || $forceUpdate) {
             // Try to fetch it
-            if ($this->getStorageLocation() == 'remote') {
+            if ($this->isRemote()) {
                 $ch = curl_init($this->getRemotePath());
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -1430,7 +1439,7 @@ class Asset extends FormEntity
      */
     public function isLocal()
     {
-        return $this->storageLocation != 'remote';
+        return $this->storageLocation === 'local';
     }
 
     /**
@@ -1438,6 +1447,22 @@ class Asset extends FormEntity
      */
     public function isRemote()
     {
-        return $this->storageLocation == 'remote';
+        return $this->storageLocation === 'remote';
+    }
+
+    /**
+     * @return bool
+     */
+    public function getDisallow()
+    {
+        return $this->disallow;
+    }
+
+    /**
+     * @param mixed $disallow
+     */
+    public function setDisallow($disallow)
+    {
+        $this->disallow = $disallow;
     }
 }

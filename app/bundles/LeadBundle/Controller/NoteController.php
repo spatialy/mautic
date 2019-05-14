@@ -39,9 +39,7 @@ class NoteController extends FormController
             return $lead;
         }
 
-        if ($this->request->getMethod() == 'POST') {
-            $this->setListFilters();
-        }
+        $this->setListFilters();
 
         $session = $this->get('session');
 
@@ -327,10 +325,13 @@ class NoteController extends FormController
         $model = $this->getModel('lead.note');
         $note  = $model->getEntity($objectId);
 
+        if ($note === null) {
+            return $this->notFound();
+        }
+
         if (
-            $note === null || !$this->get('mautic.security')->hasEntityAccess('lead:leads:editown', 'lead:leads:editother', $lead->getPermissionUser())
+            !$this->get('mautic.security')->hasEntityAccess('lead:leads:editown', 'lead:leads:editother', $lead->getPermissionUser())
             || $model->isLocked($note)
-            || $this->request->getMethod() != 'POST'
         ) {
             return $this->accessDenied();
         }

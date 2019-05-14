@@ -34,7 +34,7 @@ class AppKernel extends Kernel
      *
      * @const integer
      */
-    const MINOR_VERSION = 2;
+    const MINOR_VERSION = 15;
 
     /**
      * Patch version number.
@@ -89,24 +89,33 @@ class AppKernel extends Kernel
         if (defined('MAUTIC_INSTALLER')) {
             $uri = $request->getRequestUri();
             if (strpos($uri, 'installer') === false) {
-                $base = $request->getBaseUrl();
+                $base   = $request->getBaseUrl();
+                $prefix = '';
                 //check to see if the .htaccess file exists or if not running under apache
-                if ((strpos(strtolower($_SERVER['SERVER_SOFTWARE']), 'apache') === false
+                if (stripos($request->server->get('SERVER_SOFTWARE', ''), 'apache') === false
                     || !file_exists(__DIR__.'../.htaccess')
                     && strpos(
                         $base,
                         'index'
-                    ) === false)
+                    ) === false
                 ) {
-                    $base .= '/index.php';
+                    $prefix .= '/index.php';
                 }
 
-                return new RedirectResponse($base.'/installer');
+                return new RedirectResponse($request->getUriForPath($prefix.'/installer'));
             }
         }
 
         if (false === $this->booted) {
             $this->boot();
+        }
+
+        /*
+         * If we've already sent the response headers, and we have a session
+         * set in the request, set that as the session in the container.
+         */
+        if (headers_sent() && $request->getSession()) {
+            $this->getContainer()->set('session', $request->getSession());
         }
 
         // Check for an an active db connection and die with error if unable to connect
@@ -122,7 +131,9 @@ class AppKernel extends Kernel
                         [
                             '%code%' => $e->getCode(),
                         ]
-                    )
+                    ),
+                    0,
+                    $e
                 );
             }
         }
@@ -153,12 +164,14 @@ class AppKernel extends Kernel
             new Oneup\UploaderBundle\OneupUploaderBundle(),
             new Symfony\Bundle\TwigBundle\TwigBundle(),
             new Debril\RssAtomBundle\DebrilRssAtomBundle(),
+            new Sensio\Bundle\FrameworkExtraBundle\SensioFrameworkExtraBundle(),
             // Mautic Bundles
             new Mautic\ApiBundle\MauticApiBundle(),
             new Mautic\AssetBundle\MauticAssetBundle(),
             new Mautic\CalendarBundle\MauticCalendarBundle(),
             new Mautic\CampaignBundle\MauticCampaignBundle(),
             new Mautic\CategoryBundle\MauticCategoryBundle(),
+            new Mautic\ChannelBundle\MauticChannelBundle(),
             new Mautic\ConfigBundle\MauticConfigBundle(),
             new Mautic\CoreBundle\MauticCoreBundle(),
             new Mautic\DashboardBundle\MauticDashboardBundle(),
@@ -171,11 +184,19 @@ class AppKernel extends Kernel
             new Mautic\PageBundle\MauticPageBundle(),
             new Mautic\PluginBundle\MauticPluginBundle(),
             new Mautic\PointBundle\MauticPointBundle(),
+            new Mautic\QueueBundle\MauticQueueBundle(),
             new Mautic\ReportBundle\MauticReportBundle(),
             new Mautic\SmsBundle\MauticSmsBundle(),
             new Mautic\StageBundle\MauticStageBundle(),
             new Mautic\UserBundle\MauticUserBundle(),
             new Mautic\WebhookBundle\MauticWebhookBundle(),
+            new LightSaml\SymfonyBridgeBundle\LightSamlSymfonyBridgeBundle(),
+            new LightSaml\SpBundle\LightSamlSpBundle(),
+            new Ivory\OrderedFormBundle\IvoryOrderedFormBundle(),
+            new Noxlogic\RateLimitBundle\NoxlogicRateLimitBundle(),
+            // These two bundles do DI based on config, so they need to be loaded after config is declared in MauticQueueBundle
+            new OldSound\RabbitMqBundle\OldSoundRabbitMqBundle(),
+            new Leezy\PheanstalkBundle\LeezyPheanstalkBundle(),
         ];
 
         //dynamically register Mautic Plugin Bundles
@@ -196,6 +217,12 @@ class AppKernel extends Kernel
                 $plugin = new $class();
 
                 if ($plugin instanceof \Symfony\Component\HttpKernel\Bundle\Bundle) {
+                    if (defined($class.'::MINIMUM_MAUTIC_VERSION')) {
+                        // Check if this version supports the plugin before loading it
+                        if (version_compare($this->getVersion(), constant($class.'::MINIMUM_MAUTIC_VERSION'), 'lt')) {
+                            continue;
+                        }
+                    }
                     $bundles[] = $plugin;
                 }
 
@@ -300,7 +327,7 @@ class AppKernel extends Kernel
      *
      * @return bool
      */
-    private function isInstalled()
+    protected function isInstalled()
     {
         static $isInstalled = null;
 
@@ -357,7 +384,7 @@ class AppKernel extends Kernel
     {
         $parameters = $this->getLocalParams();
         if (isset($parameters['cache_path'])) {
-            $envFolder = (strpos($parameters['cache_path'], -1) != '/') ? '/'.$this->environment : $this->environment;
+            $envFolder = (substr($parameters['cache_path'], -1) != '/') ? '/'.$this->environment : $this->environment;
 
             return str_replace('%kernel.root_dir%', $this->getRootDir(), $parameters['cache_path'].$envFolder);
         } else {

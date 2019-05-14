@@ -14,6 +14,8 @@ namespace MauticPlugin\MauticFocusBundle\Controller;
 use Mautic\CoreBundle\Controller\CommonController;
 use Mautic\CoreBundle\Helper\TrackingPixelHelper;
 use MauticPlugin\MauticFocusBundle\Entity\Stat;
+use MauticPlugin\MauticFocusBundle\Event\FocusViewEvent;
+use MauticPlugin\MauticFocusBundle\FocusEvents;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -28,21 +30,24 @@ class PublicController extends CommonController
      */
     public function generateAction($id)
     {
+        // Don't store a visitor with this request
+        defined('MAUTIC_NON_TRACKABLE_REQUEST') || define('MAUTIC_NON_TRACKABLE_REQUEST', 1);
+
         /** @var \MauticPlugin\MauticFocusBundle\Model\FocusModel $model */
         $model = $this->getModel('focus');
         $focus = $model->getEntity($id);
 
         if ($focus) {
             if (!$focus->isPublished()) {
-                return new Response('');
+                return new Response('', 200, ['Content-Type' => 'application/javascript']);
             }
 
-            $content  = (MAUTIC_ENV == 'dev') ? $model->generateJavascript($focus, false, true) : $model->getContent($focus);
-            $response = new Response($content);
+            $content  = $model->generateJavascript($focus, false, (MAUTIC_ENV == 'dev'));
+            $response = new Response($content, 200, ['Content-Type' => 'application/javascript']);
 
             return $response;
         } else {
-            return new Response('');
+            return new Response('', 200, ['Content-Type' => 'application/javascript']);
         }
     }
 
@@ -56,9 +61,15 @@ class PublicController extends CommonController
             /** @var \MauticPlugin\MauticFocusBundle\Model\FocusModel $model */
             $model = $this->getModel('focus');
             $focus = $model->getEntity($id);
+            $lead  = $this->getModel('lead')->getCurrentLead();
 
-            if ($focus && $focus->isPublished()) {
-                $model->addStat($focus, Stat::TYPE_NOTIFICATION, $this->request);
+            if ($focus && $focus->isPublished() && $lead) {
+                $stat = $model->addStat($focus, Stat::TYPE_NOTIFICATION, $this->request, $lead);
+                if ($stat && $this->dispatcher->hasListeners(FocusEvents::FOCUS_ON_VIEW)) {
+                    $event = new FocusViewEvent($stat);
+                    $this->dispatcher->dispatch(FocusEvents::FOCUS_ON_VIEW, $event);
+                    unset($event);
+                }
             }
         }
 

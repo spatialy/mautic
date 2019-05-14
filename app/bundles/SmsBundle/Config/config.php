@@ -15,15 +15,9 @@ return [
             'mautic.sms.campaignbundle.subscriber' => [
                 'class'     => 'Mautic\SmsBundle\EventListener\CampaignSubscriber',
                 'arguments' => [
-                    'mautic.helper.core_parameters',
-                    'mautic.lead.model.lead',
                     'mautic.sms.model.sms',
-                    'mautic.sms.api',
-                    'mautic.helper.sms',
+                    'mautic.sms.transport_chain',
                 ],
-            ],
-            'mautic.sms.configbundle.subscriber' => [
-                'class' => 'Mautic\SmsBundle\EventListener\ConfigSubscriber',
             ],
             'mautic.sms.smsbundle.subscriber' => [
                 'class'     => 'Mautic\SmsBundle\EventListener\SmsSubscriber',
@@ -32,6 +26,34 @@ return [
                     'mautic.page.model.trackable',
                     'mautic.page.helper.token',
                     'mautic.asset.helper.token',
+                    'mautic.helper.sms',
+                ],
+            ],
+            'mautic.sms.channel.subscriber' => [
+                'class'     => \Mautic\SmsBundle\EventListener\ChannelSubscriber::class,
+                'arguments' => [
+                    'mautic.sms.transport_chain',
+                ],
+            ],
+            'mautic.sms.message_queue.subscriber' => [
+                'class'     => \Mautic\SmsBundle\EventListener\MessageQueueSubscriber::class,
+                'arguments' => [
+                    'mautic.sms.model.sms',
+                ],
+            ],
+            'mautic.sms.stats.subscriber' => [
+                'class'     => \Mautic\SmsBundle\EventListener\StatsSubscriber::class,
+                'arguments' => [
+                    'doctrine.orm.entity_manager',
+                ],
+            ],
+            'mautic.sms.configbundle.subscriber' => [
+                'class' => Mautic\SmsBundle\EventListener\ConfigSubscriber::class,
+            ],
+            'mautic.sms.subscriber.contact_tracker' => [
+                'class'     => \Mautic\SmsBundle\EventListener\TrackingSubscriber::class,
+                'arguments' => [
+                    'mautic.sms.repository.stat',
                 ],
             ],
         ],
@@ -51,9 +73,13 @@ return [
                 'alias'     => 'smssend_list',
             ],
             'mautic.form.type.sms_list' => [
-                'class'     => 'Mautic\SmsBundle\Form\Type\SmsListType',
-                'arguments' => 'mautic.factory',
-                'alias'     => 'sms_list',
+                'class' => 'Mautic\SmsBundle\Form\Type\SmsListType',
+                'alias' => 'sms_list',
+            ],
+            'mautic.form.type.sms.config.form' => [
+                'class'     => \Mautic\SmsBundle\Form\Type\ConfigType::class,
+                'alias'     => 'smsconfig',
+                'arguments' => ['mautic.sms.transport_chain', 'translator'],
             ],
         ],
         'helpers' => [
@@ -64,7 +90,7 @@ return [
                     'mautic.lead.model.lead',
                     'mautic.helper.phone_number',
                     'mautic.sms.model.sms',
-                    '%mautic.sms_frequency_number%',
+                    'mautic.helper.integration',
                 ],
                 'alias' => 'sms_helper',
             ],
@@ -74,20 +100,32 @@ return [
                 'class'     => 'Mautic\SmsBundle\Api\TwilioApi',
                 'arguments' => [
                     'mautic.page.model.trackable',
-                    'mautic.twilio.service',
                     'mautic.helper.phone_number',
-                    '%mautic.sms_sending_phone_number%',
+                    'mautic.helper.integration',
                     'monolog.logger.mautic',
                 ],
                 'alias' => 'sms_api',
             ],
-            'mautic.twilio.service' => [
-                'class'     => 'Services_Twilio',
+            'mautic.sms.transport_chain' => [
+                'class'     => \Mautic\SmsBundle\Sms\TransportChain::class,
                 'arguments' => [
-                    '%mautic.sms_username%',
-                    '%mautic.sms_password%',
+                    '%mautic.sms_transport%',
+                    'mautic.helper.integration',
+                    'monolog.logger.mautic',
                 ],
-                'alias' => 'twilio_service',
+            ],
+            'mautic.sms.transport.twilio' => [
+                'class'        => \Mautic\SmsBundle\Api\TwilioApi::class,
+                'arguments'    => [
+                    'mautic.page.model.trackable',
+                    'mautic.helper.phone_number',
+                    'mautic.helper.integration',
+                    'monolog.logger.mautic',
+                ],
+                'tag'          => 'mautic.sms_transport',
+                'tagArguments' => [
+                    'integrationAlias' => 'Twilio',
+                ],
             ],
         ],
         'models' => [
@@ -95,6 +133,23 @@ return [
                 'class'     => 'Mautic\SmsBundle\Model\SmsModel',
                 'arguments' => [
                     'mautic.page.model.trackable',
+                    'mautic.lead.model.lead',
+                    'mautic.channel.model.queue',
+                    'mautic.sms.transport_chain',
+                ],
+            ],
+        ],
+        'integrations' => [
+            'mautic.integration.twilio' => [
+                'class' => \Mautic\SmsBundle\Integration\TwilioIntegration::class,
+            ],
+        ],
+        'repositories' => [
+            'mautic.sms.repository.stat' => [
+                'class'     => Doctrine\ORM\EntityRepository::class,
+                'factory'   => ['@doctrine.orm.entity_manager', 'getRepository'],
+                'arguments' => [
+                    \Mautic\SmsBundle\Entity\Stat::class,
                 ],
             ],
         ],
@@ -120,6 +175,18 @@ return [
                 'controller' => 'MauticSmsBundle:Api\SmsApi:receive',
             ],
         ],
+        'api' => [
+            'mautic_api_smsesstandard' => [
+                'standard_entity' => true,
+                'name'            => 'smses',
+                'path'            => '/smses',
+                'controller'      => 'MauticSmsBundle:Api\SmsApi',
+            ],
+            'mautic_api_smses_send' => [
+                'path'       => '/smses/{id}/contact/{contactId}/send',
+                'controller' => 'MauticSmsBundle:Api\SmsApi:send',
+            ],
+        ],
     ],
     'menu' => [
         'main' => [
@@ -129,10 +196,13 @@ return [
                     'access' => ['sms:smses:viewown', 'sms:smses:viewother'],
                     'parent' => 'mautic.core.channels',
                     'checks' => [
-                        'parameters' => [
-                            'sms_enabled' => true,
+                        'integration' => [
+                            'Twilio' => [
+                                'enabled' => true,
+                            ],
                         ],
                     ],
+                    'priority' => 70,
                 ],
             ],
         ],
@@ -144,5 +214,6 @@ return [
         'sms_sending_phone_number' => null,
         'sms_frequency_number'     => null,
         'sms_frequency_time'       => null,
+        'sms_transport'            => 'mautic.sms.transport.twilio',
     ],
 ];

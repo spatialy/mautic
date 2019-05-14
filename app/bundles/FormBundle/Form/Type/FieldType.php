@@ -16,6 +16,7 @@ use Mautic\LeadBundle\Helper\FormFieldHelper;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -24,6 +25,21 @@ use Symfony\Component\Validator\Constraints as Assert;
 class FieldType extends AbstractType
 {
     use FormFieldTrait;
+
+    /**
+     * @var TranslatorInterface
+     */
+    private $translator;
+
+    /**
+     * FieldType constructor.
+     *
+     * @param TranslatorInterface $translator
+     */
+    public function __construct(TranslatorInterface $translator)
+    {
+        $this->translator = $translator;
+    }
 
     /**
      * {@inheritdoc}
@@ -98,6 +114,15 @@ class FieldType extends AbstractType
                     // Allow html
                     $cleanMasks['properties'] = 'html';
                     break;
+                case 'freehtml':
+                    $addHelpMessage      = $addDefaultValue      = $addIsRequired      = $addLeadFieldList      = $addSaveResult      = $addBehaviorFields      = false;
+                    $labelText           = 'mautic.form.field.form.header';
+                    $showLabelText       = 'mautic.form.field.form.showheader';
+                    $inputAttributesText = 'mautic.form.field.form.freehtml_attributes';
+                    $labelAttributesText = 'mautic.form.field.form.header_attributes';
+                    // Allow html
+                    $cleanMasks['properties'] = 'html';
+                    break;
                 case 'button':
                     $addHelpMessage = $addShowLabel = $addDefaultValue = $addLabelAttributes = $addIsRequired = $addLeadFieldList = $addSaveResult = $addBehaviorFields = false;
                     break;
@@ -110,15 +135,15 @@ class FieldType extends AbstractType
                 case 'pagebreak':
                     $addShowLabel = $allowCustomAlias = $addHelpMessage = $addIsRequired = $addDefaultValue = $addLeadFieldList = $addSaveResult = $addBehaviorFields = false;
                     break;
-                case 'email':
-                    $addBehaviorFields = false;
-                    break;
                 case 'select':
                     $cleanMasks['properties']['list']['list']['label'] = 'strict_html';
                     break;
                 case 'checkboxgrp':
                 case 'radiogrp':
                     $cleanMasks['properties']['optionlist']['list']['label'] = 'strict_html';
+                    break;
+                case 'file':
+                    $addShowLabel = $addDefaultValue = $addBehaviorFields = false;
                     break;
             }
         }
@@ -214,7 +239,11 @@ class FieldType extends AbstractType
                 [
                     'label'      => 'mautic.form.field.form.validationmsg',
                     'label_attr' => ['class' => 'control-label'],
-                    'attr'       => ['class' => 'form-control'],
+                    'attr'       => [
+                        'class'        => 'form-control',
+                        'tooltip'      => $this->translator->trans('mautic.core.form.default').': '.$this->translator->trans('mautic.form.field.generic.required', [], 'validators'),
+                        'data-show-on' => '{"formfield_isRequired_1": "checked"}',
+                    ],
                     'required'   => false,
                 ]
             );
@@ -359,8 +388,11 @@ class FieldType extends AbstractType
                 [
                     'choices'     => $options['leadFields'],
                     'choice_attr' => function ($val, $key, $index) use ($options) {
-                        if (!empty($options['leadFieldProperties'][$val]) && (in_array($options['leadFieldProperties'][$val]['type'], FormFieldHelper::getListTypes()) || !empty($options['leadFieldProperties'][$val]['properties']['list']) || !empty($options['leadFieldProperties'][$val]['properties']['optionlist']))) {
-                            return ['data-list-type' => 1];
+                        $objects = ['lead', 'company'];
+                        foreach ($objects as $object) {
+                            if (!empty($options['leadFieldProperties'][$object][$val]) && (in_array($options['leadFieldProperties'][$object][$val]['type'], FormFieldHelper::getListTypes()) || !empty($options['leadFieldProperties'][$object][$val]['properties']['list']) || !empty($options['leadFieldProperties'][$object][$val]['properties']['optionlist']))) {
+                                return ['data-list-type' => 1];
+                            }
                         }
 
                         return [];
@@ -408,10 +440,11 @@ class FieldType extends AbstractType
         );
 
         // Put properties last so that the other values are available to form events
+        $propertiesData = (isset($options['data']['properties'])) ? $options['data']['properties'] : [];
         if (!empty($options['customParameters'])) {
+            $formTypeOptions = array_merge($formTypeOptions, ['data' => $propertiesData]);
             $builder->add('properties', $customParams['formType'], $formTypeOptions);
         } else {
-            $propertiesData = (isset($options['data']['properties'])) ? $options['data']['properties'] : [];
             switch ($type) {
                 case 'select':
                 case 'country':
@@ -449,12 +482,24 @@ class FieldType extends AbstractType
                         ]
                     );
                     break;
+                case 'freehtml':
+                    $builder->add(
+                        'properties',
+                        'formfield_html',
+                        [
+                            'required' => false,
+                            'label'    => false,
+                            'editor'   => true,
+                            'data'     => $propertiesData,
+                        ]
+                    );
+                    break;
                 case 'date':
                 case 'email':
                 case 'number':
-                case 'tel':
                 case 'text':
                 case 'url':
+                case 'tel':
                     $builder->add(
                         'properties',
                         'formfield_placeholder',
@@ -478,6 +523,19 @@ class FieldType extends AbstractType
                     $builder->add(
                         'properties',
                         FormFieldPageBreakType::class,
+                        [
+                            'label' => false,
+                            'data'  => $propertiesData,
+                        ]
+                    );
+                    break;
+                case 'file':
+                    if (!isset($propertiesData['public'])) {
+                        $propertiesData['public'] = false;
+                    }
+                    $builder->add(
+                        'properties',
+                        FormFieldFileType::class,
                         [
                             'label' => false,
                             'data'  => $propertiesData,

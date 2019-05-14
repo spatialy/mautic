@@ -47,9 +47,9 @@ class DateTimeHelper
     private $datetime;
 
     /**
-     * @param string $string     Datetime string
-     * @param string $fromFormat Format the string is in
-     * @param string $timezone   Timezone the string is in
+     * @param \DateTime|string $string
+     * @param string           $fromFormat Format the string is in
+     * @param string           $timezone   Timezone the string is in
      */
     public function __construct($string = '', $fromFormat = 'Y-m-d H:i:s', $timezone = 'UTC')
     {
@@ -75,10 +75,11 @@ class DateTimeHelper
         $this->timezone = $timezone;
 
         $this->utc   = new \DateTimeZone('UTC');
-        $this->local = new \DateTimeZone(date_default_timezone_get());
+        $this->local = new \DateTimeZone($timezone);
 
         if ($datetime instanceof \DateTime) {
             $this->datetime = $datetime;
+            $this->timezone = $datetime->getTimezone()->getName();
             $this->string   = $this->datetime->format($fromFormat);
         } elseif (empty($datetime)) {
             $this->datetime = new \DateTime('now', new \DateTimeZone($this->timezone));
@@ -282,6 +283,40 @@ class DateTimeHelper
     }
 
     /**
+     * Returns interval based on $interval number and $unit.
+     *
+     * @param int    $interval
+     * @param string $unit
+     *
+     * @return \DateInterval
+     *
+     * @throws \Exception
+     */
+    public function buildInterval($interval, $unit)
+    {
+        $possibleUnits = ['Y', 'M', 'D', 'I', 'H', 'S'];
+        $unit          = strtoupper($unit);
+
+        if (!in_array($unit, $possibleUnits)) {
+            throw new \InvalidArgumentException($unit.' is invalid unit for DateInterval');
+        }
+
+        switch ($unit) {
+            case 'I':
+                $spec = "PT{$interval}M";
+                break;
+            case 'H':
+            case 'S':
+                $spec = "PT{$interval}{$unit}";
+                break;
+            default:
+                $spec = "P{$interval}{$unit}";
+        }
+
+        return new \DateInterval($spec);
+    }
+
+    /**
      * Modify datetime.
      *
      * @param            $string
@@ -325,6 +360,49 @@ class DateTimeHelper
                 return 'tomorrow';
             default:
                 return false;
+        }
+    }
+
+    /**
+     * Tries to guess timezone from timezone offset.
+     *
+     * @param int $offset in seconds
+     *
+     * @return string
+     */
+    public function guessTimezoneFromOffset($offset = 0)
+    {
+        // Sanitize input
+        $offset = (int) $offset;
+
+        $timezone = timezone_name_from_abbr('', $offset, false);
+
+        // In case http://bugs.php.net/44780 bug happens
+        if (empty($timezone)) {
+            foreach (timezone_abbreviations_list() as $abbr) {
+                foreach ($abbr as $city) {
+                    if ($city['offset'] == $offset) {
+                        return $city['timezone_id'];
+                    }
+                }
+            }
+        }
+
+        return $timezone;
+    }
+
+    /**
+     * @param string $unit
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function validateMysqlDateTimeUnit($unit)
+    {
+        $possibleUnits   = ['s', 'i', 'H', 'd', 'W', 'm', 'Y'];
+
+        if (!in_array($unit, $possibleUnits, true)) {
+            $possibleUnitsString = implode(', ', $possibleUnits);
+            throw new \InvalidArgumentException("Unit '$unit' is not supported. Use one of these: $possibleUnitsString");
         }
     }
 }

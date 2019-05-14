@@ -1,7 +1,7 @@
 <?php
 
 /*
- * @copyright   2016 Mautic Contributors. All rights reserved
+ * @copyright   2014 Mautic Contributors. All rights reserved
  * @author      Mautic
  *
  * @link        http://mautic.org
@@ -11,11 +11,11 @@
 
 namespace Mautic\SmsBundle\Form\Type;
 
+use Mautic\SmsBundle\Sms\TransportChain;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Form\FormEvent;
-use Symfony\Component\Form\FormEvents;
-use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Translation\TranslatorInterface;
 
 /**
  * Class ConfigType.
@@ -23,117 +23,48 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 class ConfigType extends AbstractType
 {
     /**
+     * @var TransportChain
+     */
+    private $transportChain;
+
+    /**
+     * @var TranslatorInterface
+     */
+    private $translator;
+
+    /**
+     * ConfigType constructor.
+     *
+     * @param TransportChain      $transportChain
+     * @param TranslatorInterface $translator
+     */
+    public function __construct(TransportChain $transportChain, TranslatorInterface $translator)
+    {
+        $this->transportChain = $transportChain;
+        $this->translator     = $translator;
+    }
+
+    /**
      * @param FormBuilderInterface $builder
      * @param array                $options
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $builder->add(
-            'sms_enabled',
-            'yesno_button_group',
-            [
-                'label' => 'mautic.sms.config.form.sms.enabled',
-                'data'  => (bool) $options['data']['sms_enabled'],
-                'attr'  => [
-                    'tooltip' => 'mautic.sms.config.form.sms.enabled.tooltip',
-                ],
-            ]
-        );
+        $choices    = [];
+        $transports = $this->transportChain->getEnabledTransports();
+        foreach ($transports as $transportServiceId=>$transport) {
+            $choices[$transportServiceId] = $this->translator->trans($transportServiceId);
+        }
 
-        $formModifier = function (FormEvent $event) {
-            $form = $event->getForm();
-            $data = $event->getData();
-
-            // Add required restraints if sms is enabled
-            $constraints = (empty($data['sms_enabled'])) ?
-                [] :
-                [
-                    new NotBlank(
-                        [
-                            'message' => 'mautic.core.value.required',
-                        ]
-                    ),
-                ];
-
-            $form->add(
-                'sms_username',
-                'text',
-                [
-                    'label' => 'mautic.sms.config.form.sms.username',
-                    'attr'  => [
-                        'tooltip'      => 'mautic.sms.config.form.sms.username.tooltip',
-                        'class'        => 'form-control',
-                        'data-show-on' => '{"config_smsconfig_sms_enabled_1":"checked"}',
-                    ],
-                    'constraints' => $constraints,
-                ]
-            );
-
-            $form->add(
-                'sms_password',
-                'text',
-                [
-                    'label' => 'mautic.sms.config.form.sms.password',
-                    'attr'  => [
-                        'tooltip'      => 'mautic.sms.config.form.sms.password.tooltip',
-                        'class'        => 'form-control',
-                        'data-show-on' => '{"config_smsconfig_sms_enabled_1":"checked"}',
-                    ],
-                    'constraints' => $constraints,
-                ]
-            );
-
-            $form->add(
-                'sms_sending_phone_number',
-                'text',
-                [
-                    'label' => 'mautic.sms.config.form.sms.sending_phone_number',
-                    'attr'  => [
-                        'tooltip'      => 'mautic.sms.config.form.sms.sending_phone_number.tooltip',
-                        'class'        => 'form-control',
-                        'data-show-on' => '{"config_smsconfig_sms_enabled_1":"checked"}',
-                    ],
-                    'constraints' => $constraints,
-                ]
-            );
-        };
-        $builder->add('sms_frequency_number', 'number',
-            [
-                'precision'  => 0,
-                'label'      => 'mautic.sms.list.frequency.number',
-                'label_attr' => ['class' => 'control-label'],
-                'required'   => false,
-                'attr'       => [
-                    'class' => 'form-control frequency',
-                ],
-            ]);
-        $builder->add('sms_frequency_time', 'choice',
-            [
-                'choices' => [
-                    'DAY'   => 'day',
-                    'WEEK'  => 'week',
-                    'MONTH' => 'month',
-                ],
-                'label'      => 'mautic.lead.list.frequency.times',
-                'label_attr' => ['class' => 'control-label'],
-                'required'   => false,
-                'multiple'   => false,
-                'attr'       => [
-                    'class' => 'form-control frequency',
-                ],
-            ]);
-
-        // Before submit
-        $builder->addEventListener(
-            FormEvents::PRE_SUBMIT,
-            $formModifier
-        );
-
-        // After submit
-        $builder->addEventListener(
-            FormEvents::PRE_SET_DATA,
-            $formModifier
-        );
+        $builder->add('sms_transport', ChoiceType::class, [
+            'label'      => 'mautic.sms.config.select_default_transport',
+            'label_attr' => ['class' => 'control-label'],
+            'attr'       => [
+                'class'   => 'form-control',
+                'tooltip' => 'mautic.sms.config.select_default_transport',
+            ],
+            'choices'   => $choices,
+        ]);
     }
 
     /**

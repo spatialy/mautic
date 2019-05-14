@@ -15,7 +15,6 @@ use Mautic\CampaignBundle\CampaignEvents;
 use Mautic\CampaignBundle\Event\CampaignBuilderEvent;
 use Mautic\CampaignBundle\Event\CampaignExecutionEvent;
 use Mautic\CoreBundle\EventListener\CommonSubscriber;
-use Mautic\PluginBundle\Helper\IntegrationHelper;
 use Mautic\PluginBundle\PluginEvents;
 
 /**
@@ -23,20 +22,7 @@ use Mautic\PluginBundle\PluginEvents;
  */
 class CampaignSubscriber extends CommonSubscriber
 {
-    /**
-     * @var IntegrationHelper
-     */
-    protected $integrationHelper;
-
-    /**
-     * CampaignSubscriber constructor.
-     *
-     * @param IntegrationHelper $integrationHelper
-     */
-    public function __construct(IntegrationHelper $integrationHelper)
-    {
-        $this->integrationHelper = $integrationHelper;
-    }
+    use PushToIntegrationTrait;
 
     /**
      * {@inheritdoc}
@@ -70,28 +56,23 @@ class CampaignSubscriber extends CommonSubscriber
      */
     public function onCampaignTriggerAction(CampaignExecutionEvent $event)
     {
-        $config = $event->getConfig();
-        $lead   = $event->getLead();
+        $config                  = $event->getConfig();
+        $config['campaignEvent'] = $event->getEvent();
+        $config['leadEventLog']  = $event->getLogEntry();
+        $lead                    = $event->getLead();
+        $errors                  = [];
+        $success                 = $this->pushToIntegration($config, $lead, $errors);
 
-        $integration = (!empty($config['integration'])) ? $config['integration'] : null;
-        $feature     = (empty($integration)) ? 'push_lead' : null;
-
-        $services = $this->integrationHelper->getIntegrationObjects($integration, $feature);
-        $success  = false;
-
-        foreach ($services as $name => $s) {
-            $settings = $s->getIntegrationSettings();
-            if (!$settings->isPublished()) {
-                continue;
-            }
-
-            if (method_exists($s, 'pushLead')) {
-                if ($s->pushLead($lead, $config)) {
-                    $success = true;
-                }
-            }
+        if (count($errors)) {
+            $log = $event->getLogEntry();
+            $log->appendToMetadata(
+                [
+                    'failed' => 1,
+                    'reason' => implode('<br />', $errors),
+                ]
+            );
         }
 
-        return $event->setResult($success);
+        $event->setResult($success);
     }
 }

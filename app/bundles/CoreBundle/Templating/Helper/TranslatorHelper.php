@@ -11,10 +11,13 @@
 
 namespace Mautic\CoreBundle\Templating\Helper;
 
+use Mautic\CoreBundle\Translation\Translator;
 use Symfony\Bundle\FrameworkBundle\Templating\Helper\TranslatorHelper as BaseHelper;
 
 /**
  * Extended TranslatorHelper.
+ *
+ * @property Translator $translator
  */
 class TranslatorHelper extends BaseHelper
 {
@@ -49,6 +52,9 @@ class TranslatorHelper extends BaseHelper
         return $this->translator->transConditional($preferred, $alternative, $parameters, $domain, $locale);
     }
 
+    /**
+     * @return string
+     */
     public function getJsLang()
     {
         $this->translator->addResource('mautic', null, $this->translator->getLocale(), 'javascript');

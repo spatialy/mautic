@@ -39,6 +39,18 @@ class ConfigType extends AbstractType
         );
 
         $builder->add(
+            'api_enable_basic_auth',
+            'yesno_button_group',
+            [
+                'label' => 'mautic.api.config.form.api.basic_auth_enabled',
+                'data'  => (bool) $options['data']['api_enable_basic_auth'],
+                'attr'  => [
+                    'tooltip' => 'mautic.api.config.form.api.basic_auth.tooltip',
+                ],
+            ]
+        );
+
+        $builder->add(
             'api_oauth2_access_token_lifetime',
             'number',
             [
@@ -76,6 +88,26 @@ class ConfigType extends AbstractType
                     ),
                 ],
             ]
+        );
+
+        $builder->add(
+          'api_rate_limiter_limit',
+          'number',
+          [
+            'label' => 'mautic.api.config.form.api.rate_limiter_limit',
+            'attr'  => [
+              'tooltip'      => 'mautic.api.config.form.api.rate_limiter_limit.tooltip',
+              'class'        => 'form-control',
+              'data-show-on' => '{"config_apiconfig_api_enabled_1":"checked"}',
+            ],
+            'constraints' => [
+              new NotBlank(
+                [
+                  'message' => 'mautic.core.value.required',
+                ]
+              ),
+            ],
+          ]
         );
     }
 

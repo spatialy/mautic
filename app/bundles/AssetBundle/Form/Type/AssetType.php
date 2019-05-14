@@ -16,7 +16,6 @@ use Mautic\CoreBundle\Form\EventListener\CleanFormSubscriber;
 use Mautic\CoreBundle\Form\EventListener\FormExitSubscriber;
 use Mautic\CoreBundle\Helper\ThemeHelper;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\ChoiceList\ChoiceList;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolverInterface;
 use Symfony\Component\Translation\TranslatorInterface;
@@ -65,12 +64,13 @@ class AssetType extends AbstractType
         $builder->addEventSubscriber(new FormExitSubscriber('asset.asset', $options));
 
         $builder->add('storageLocation', 'button_group', [
-            'label'       => 'mautic.asset.asset.form.storageLocation',
-            'choice_list' => new ChoiceList(
-                ['local', 'remote'],
-                ['mautic.asset.asset.form.storageLocation.local', 'mautic.asset.asset.form.storageLocation.remote']
-            ),
-            'attr' => [
+            'label'   => 'mautic.asset.asset.form.storageLocation',
+            'choices' => [
+                'mautic.asset.asset.form.storageLocation.local'  => 'local',
+                'mautic.asset.asset.form.storageLocation.remote' => 'remote',
+            ],
+            'choices_as_values' => true,
+            'attr'              => [
                 'onchange' => 'Mautic.changeAssetStorageLocation();',
             ],
         ]);
@@ -85,6 +85,18 @@ class AssetType extends AbstractType
         $builder->add('originalFileName', 'hidden', [
             'required' => false,
         ]);
+        $builder->add(
+            'disallow',
+            'yesno_button_group',
+            [
+                'label' => 'mautic.asset.asset.form.disallow.crawlers',
+                'attr'  => [
+                    'tooltip'      => 'mautic.asset.asset.form.disallow.crawlers.descr',
+                    'data-show-on' => '{"asset_storageLocation_0":"checked"}',
+                ],
+                'data'=> empty($options['data']->getDisallow()) ? false : true,
+            ]
+        );
 
         $builder->add('remotePath', 'text', [
             'label'      => 'mautic.asset.asset.form.remotePath',

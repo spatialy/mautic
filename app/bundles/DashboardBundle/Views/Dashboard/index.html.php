@@ -28,7 +28,7 @@ $buttons = [
         'attr' => [
             'class'       => 'btn btn-default btn-nospin',
             'href'        => 'javascript:void()',
-            'onclick'     => "Mautic.exportDashboardLayout('{$view['translator']->trans('mautic.dashboard.confirmation_layout_name')}', '{$view['router']->path('mautic_dashboard_action', ['objectAction' => 'export'])}', true);",
+            'onclick'     => "Mautic.saveDashboardLayout('{$view['translator']->trans('mautic.dashboard.confirmation_layout_name')}');",
             'data-toggle' => '',
         ],
         'iconClass' => 'fa fa-save',
@@ -38,7 +38,7 @@ $buttons = [
         'attr' => [
             'class'       => 'btn btn-default btn-nospin',
             'href'        => 'javascript:void()',
-            'onclick'     => "Mautic.exportDashboardLayout('{$view['translator']->trans('mautic.dashboard.confirmation_layout_name')}', '{$view['router']->path('mautic_dashboard_action', ['objectAction' => 'export'])}', false);",
+            'onclick'     => "Mautic.exportDashboardLayout('{$view['translator']->trans('mautic.dashboard.confirmation_layout_name')}', '{$view['router']->path('mautic_dashboard_action', ['objectAction' => 'export'])}');",
             'data-toggle' => '',
         ],
         'iconClass' => 'fa fa-cloud-download',
@@ -79,7 +79,7 @@ $view['slots']->set('actions', $view->render('MauticCoreBundle:Helper:page_actio
 <?php else: ?>
     <div class="well well col-md-6 col-md-offset-3 mt-md">
         <div class="row">
-            <div class="col-xs-3 text-center">
+            <div class="mautibot-image col-xs-3 text-center">
                 <img class="img-responsive" style="max-height: 125px; margin-left: auto; margin-right: auto;" src="<?php echo $view['mautibot']->getImage('wave'); ?>" />
             </div>
             <div class="col-xs-9">
